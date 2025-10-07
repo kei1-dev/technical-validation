@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageAccountPrefix": {
+      "type": "string",
+      "defaultValue": "handsonstor",
+      "metadata": {
+        "description": "ストレージ アカウント名のプレフィックス (小文字英数字)"
+      },
+      "minLength": 3,
+      "maxLength": 11
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "japaneast",
+      "metadata": {
+        "description": "デプロイ先リージョン"
+      }
+    },
+    "skuTier": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "SKU tiers (Standard または Premium)"
+      }
+    },
+    "environmentTag": {
+      "type": "string",
+      "defaultValue": "Workshop",
+      "metadata": {
+        "description": "Environment タグに設定する値"
+      }
+    }
+  },
+  "variables": {
+    "storageAccountName": "[toLower(concat(parameters('storageAccountPrefix'), uniqueString(resourceGroup().id)))]",
+    "skuNameMap": {
+      "Standard": "Standard_LRS",
+      "Premium": "Premium_LRS"
+    }
+  },
+  "functions": [
+    {
+      "namespace": "handson",
+      "members": {
+        "buildTags": {
+          "parameters": [
+            {
+              "name": "environment",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "object",
+            "value": {
+              "Environment": "[parameters('environment')]",
+              "Owner": "[deployment().name]",
+              "LastDeployed": "[utcNow()]"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-05-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[variables('skuNameMap')[parameters('skuTier')]]"
+      },
+      "kind": "StorageV2",
+      "tags": "[handson.buildTags(parameters('environmentTag'))]",
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    }
+  ],
+  "outputs": {
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('storageAccountName')]"
+    },
+    "primaryEndpoints": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))).primaryEndpoints]"
+    }
+  }
+}
