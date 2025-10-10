@@ -35,6 +35,10 @@
       "metadata": {
         "description": "Environment タグに設定する値"
       }
+    },
+    "deploymentTimestamp": {
+      "type": "string",
+      "defaultValue": "[utcNow()]"
     }
   },
   "variables": {
@@ -53,6 +57,10 @@
             {
               "name": "environment",
               "type": "string"
+            },
+            {
+              "name": "timestamp",
+              "type": "string"
             }
           ],
           "output": {
@@ -60,7 +68,7 @@
             "value": {
               "Environment": "[parameters('environment')]",
               "Owner": "[deployment().name]",
-              "LastDeployed": "[utcNow()]"
+              "LastDeployed": "[parameters('timestamp')]"
             }
           }
         }
@@ -77,7 +85,7 @@
         "name": "[variables('skuNameMap')[parameters('skuTier')]]"
       },
       "kind": "StorageV2",
-      "tags": "[handson.buildTags(parameters('environmentTag'))]",
+      "tags": "[handson.buildTags(parameters('environmentTag'), parameters('deploymentTimestamp'))]",
       "properties": {
         "supportsHttpsTrafficOnly": true,
         "accessTier": "Hot"

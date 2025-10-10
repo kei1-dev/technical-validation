@@ -108,11 +108,14 @@ Get-Content $templatePath
 ```powershell
 Test-AzResourceGroupDeployment `
   -ResourceGroupName $rgName `
-  -TemplateFile $templatePath
+  -TemplateFile $templatePath `
+  -Verbose
 ```
 
-- 成功すると `Validation passed` が表示される。
+- `-Verbose` を付けると成功時に情報メッセージ (`Validation passed` など) が表示される。
 - 失敗した場合はエラー メッセージから JSON の構文やスキーマ URL を確認。
+- 成功判定は戻り値の `ProvisioningState` (`Succeeded` であれば成功) や `Timestamp` を確認する。
+- `-Verbose` を外して実行する場合は、情報ストリームが既定で非表示のためメッセージが出ない。メッセージを明示的に表示したいときは `$InformationPreference = 'Continue'` を設定する。
 - 参照: [デプロイの検証](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-powershell#validate-a-deployment)
 
 ### 4.3 (任意) デプロイの実行
@@ -224,10 +227,12 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
 - 併せて `templates/storage-account-advanced/parameters.json` を開き、パラメーター構成を確認した上で `work/storage-account-advanced/parameters.json` に写経し、環境に合わせて値を編集します。
 - 各構成要素のポイント
   - `parameters`: プレフィックス・リージョン・SKU・タグなど、外部から切り替えたい値を宣言。
-- `variables`: 一意なストレージ名や SKU マップなど、テンプレート内で再利用する計算値を保持。
-- `functions`: `handson.buildTags` がタグ オブジェクトを生成し、`deployment().name` など組み込み関数も活用。
-- `resources`: StorageV2 をデプロイし、`tags` にユーザー定義関数から得たオブジェクトを設定。
-- `outputs`: ストレージ名とプライマリ エンドポイントを返し、後続の自動化に利用できるようにする。
+  - `variables`: 一意なストレージ名や SKU マップなど、テンプレート内で再利用する計算値を保持。
+  - `functions`: `handson` 名前空間内で `buildTags` を定義し、環境名とタイムスタンプを受け取ってタグ オブジェクトを組み立てる。関数本体では `deployment().name` をタグに含め、`Environment` フィールドと `LastDeployed` フィールドには呼び出し元から渡された値を格納する。呼び出し側 (`tags`) は `[handson.buildTags(parameters('environmentTag'), parameters('deploymentTimestamp'))]` の形で評価され、パラメーターの既定値として `utcNow()` を使うことでデプロイ時刻を一度だけ取得できる。
+  - `resources`: StorageV2 をデプロイし、`tags` にユーザー定義関数から得たオブジェクトを設定。
+  - `outputs`: ストレージ名とプライマリ エンドポイントを返し、後続の自動化に利用できるようにする。
+
+> 補足: ユーザー定義関数はテンプレートの先頭で宣言し、`namespace` と `members` 配下に配置する必要があります。関数の `parameters` セクションは通常のパラメーターと同様の型指定が可能で、`output` セクションで返却する型と値を明示します。ARM エンジンはリソース評価前に関数を解決するため、`functions` に定義した処理はリソースから参照すれば自動的に展開されます。
 
 ```json
 {
@@ -255,6 +260,10 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
     "environmentTag": {
       "type": "string",
       "defaultValue": "Workshop"
+    },
+    "deploymentTimestamp": {
+      "type": "string",
+      "defaultValue": "[utcNow()]"
     }
   },
   "variables": {
@@ -273,6 +282,10 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
             {
               "name": "environment",
               "type": "string"
+            },
+            {
+              "name": "timestamp",
+              "type": "string"
             }
           ],
           "output": {
@@ -280,7 +293,7 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
             "value": {
               "Environment": "[parameters('environment')]",
               "Owner": "[deployment().name]",
-              "LastDeployed": "[utcNow()]"
+              "LastDeployed": "[parameters('timestamp')]"
             }
           }
         }
@@ -297,7 +310,7 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
         "name": "[variables('skuNameMap')[parameters('skuTier')]]"
       },
       "kind": "StorageV2",
-      "tags": "[handson.buildTags(parameters('environmentTag'))]",
+      "tags": "[handson.buildTags(parameters('environmentTag'), parameters('deploymentTimestamp'))]",
       "properties": {
         "supportsHttpsTrafficOnly": true,
         "accessTier": "Hot"
