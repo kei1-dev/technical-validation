@@ -16,6 +16,20 @@ Azure Resource Manager (ARM) テンプレートの最小構成とストレージ
   - Windows / macOS / Linux の PowerShell 7 以降、または Azure Cloud Shell (PowerShell) を利用可能であること。
   - Az PowerShell モジュール (推奨: 11.x 以降) がインストール済みであること。参考: [Azure PowerShell のインストール](https://learn.microsoft.com/powershell/azure/install-azure-powershell)
 
+### 重要: 複数人での同時作業について
+
+このハンズオンでは複数人が同じ環境で同時に作業することを想定し、リソース名の競合を避けるため**個人名を含む命名規則**を使用します。
+
+```powershell
+# 個人識別用の変数を設定（例: 姓名のイニシャルやニックネーム等）
+$userName = "your-name"  # 例: "tanaka", "suzuki", "yamada" など
+
+# 確認用
+Write-Host "ユーザー名: $userName"
+```
+
+> **注意**: `$userName` には英小文字・数字・ハイフンのみ使用可能です（Azure リソース名制約のため）。日本語や大文字、アンダースコアは使用できません。
+
 ---
 
 ## 2. Azure PowerShell 環境セットアップ
@@ -48,15 +62,15 @@ Portal 側でアクティビティ ログを見る際は同じサブスクリプ
 # 既存のリソース グループを確認
 Get-AzResourceGroup | Select-Object ResourceGroupName, Location
 
-# ハンズオン全体で使うリソース グループ名を変数に保持
-$rgName = "rg-arm-handson-jpe"
+# ハンズオン全体で使うリソース グループ名を変数に保持（個人名を含める）
+$rgName = "rg-arm-handson-$userName-jpe"
 
 # ハンズオン用のリソース グループを作成
 New-AzResourceGroup -Name $rgName -Location "JapanEast"
 ```
 
 Location 一覧の取得: `Get-AzLocation | Select-Object Location, DisplayName`
-> 補足: 以降のコマンドでは同じ PowerShell セッションで `$rgName` を再利用します。新しいセッションを開いた場合は、再度 `$rgName = "rg-arm-handson-jpe"` を実行してからコマンドを試してください。
+> 補足: 以降のコマンドでは同じ PowerShell セッションで `$userName` と `$rgName` を再利用します。新しいセッションを開いた場合は、再度 `$userName = "your-name"` と `$rgName = "rg-arm-handson-$userName-jpe"` を実行してからコマンドを試してください。
 
 ---
 
@@ -128,7 +142,7 @@ New-AzResourceGroupDeployment `
   -TemplateFile $templatePath
 ```
 
-Azure Portal の「リソース グループ」ブレード → `rg-arm-handson-jpe` → 「デプロイ」タブで履歴を確認できる。
+Azure Portal の「リソース グループ」ブレード → `rg-arm-handson-[your-name]-jpe` → 「デプロイ」タブで履歴を確認できる。
 
 ---
 
@@ -142,13 +156,15 @@ Azure Portal の「リソース グループ」ブレード → `rg-arm-handson-
 1. `templates/storage-account.json` を開き、構成要素と必須プロパティを確認します。
 2. `work/storage-account.json` を開き、以下のようにパラメーターを使わず固定値（またはテンプレート関数）で設定します。
 
+> **重要**: 以下の例では `'YOUR-NAME'` を実際の個人名に置き換えてください（例: `'tanaka'`）。
+
 ```json
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {},
   "variables": {
-    "storageAccountName": "[concat('handsonstor', uniqueString(resourceGroup().id))]"
+    "storageAccountName": "[concat('handson', 'YOUR-NAME', uniqueString(resourceGroup().id))]"
   },
   "resources": [
     {
@@ -172,7 +188,7 @@ Azure Portal の「リソース グループ」ブレード → `rg-arm-handson-
 }
 ```
 
-> 補足: `uniqueString(resourceGroup().id)` を使うことで、同じリソース グループ内で一意な名前を自動生成できます。別の命名ルールに変更しても構いません（小文字英数字のみ、3〜24 文字の制約に注意）。
+> 補足: `'YOUR-NAME'` の部分は実際の個人名（例: `'tanaka'`）に置き換えてください。`uniqueString(resourceGroup().id)` を使うことで、同じリソース グループ内で一意な名前を自動生成できます（小文字英数字のみ、3〜24 文字の制約に注意）。
 
 3. 保存後、PowerShell でテンプレート パスを変数に格納します。
 
@@ -223,8 +239,10 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
 
 ### 6.1 完成テンプレートで全構造を再確認
 - `templates/storage-account-advanced/main.json` で `$schema` / `contentVersion` / `parameters` / `variables` / `functions` / `resources` / `outputs` がすべて揃っていることを確認します。
-- `work/storage-account-advanced/main.json` に同じ内容をコピーし、必要であれば値を調整して保存します。
-- 併せて `templates/storage-account-advanced/parameters.json` を開き、パラメーター構成を確認した上で `work/storage-account-advanced/parameters.json` に写経し、環境に合わせて値を編集します。
+- `work/storage-account-advanced/main.json` に同じ内容をコピーし、**個人名を含むよう値を調整**して保存します。
+- 併せて `templates/storage-account-advanced/parameters.json` を開き、パラメーター構成を確認した上で `work/storage-account-advanced/parameters.json` に写経し、**個人名を含めて環境に合わせて値を編集**します。
+
+> **重要**: 以下のテンプレート例で `'YOUR-NAME'` と表示されている箇所は、すべて実際の個人名（例: `'tanaka'`）に置き換えてください。
 - 各構成要素のポイント
   - `parameters`: プレフィックス・リージョン・SKU・タグなど、外部から切り替えたい値を宣言。
   - `variables`: 一意なストレージ名や SKU マップなど、テンプレート内で再利用する計算値を保持。
@@ -241,7 +259,7 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
   "parameters": {
     "storageAccountPrefix": {
       "type": "string",
-      "defaultValue": "handsonstor",
+      "defaultValue": "handsonYOUR-NAME",
       "minLength": 3,
       "maxLength": 11
     },
@@ -338,7 +356,7 @@ Portal では「リソース グループ」→ 対象ストレージ アカウ�
   "contentVersion": "1.0.0.0",
   "parameters": {
     "storageAccountPrefix": {
-      "value": "handsonps"
+      "value": "handsonYOUR-NAME"
     },
     "location": {
       "value": "japaneast"
@@ -383,7 +401,7 @@ New-AzResourceGroupDeployment `
 1. テンプレートに含まれないリソースを直接Powershellで追加して差分を作成します。
 
    ```powershell
-   $extraName = "extrastr$((Get-Random -Maximum 9999).ToString('0000'))"
+   $extraName = "extra$userName$((Get-Random -Maximum 9999).ToString('0000'))"
    New-AzStorageAccount `
      -ResourceGroupName $rgName `
      -Name $extraName `
@@ -403,7 +421,7 @@ New-AzResourceGroupDeployment `
      -WhatIf
    ```
 
-   `Delete` アクションとしてテンプレート外のリソース (例: `extrastr****`) が表示されることを確認します。想定外のリソースが含まれている場合は、この段階でテンプレートや既存リソースを調整してください。
+   `Delete` アクションとしてテンプレート外のリソース (例: `extra[your-name]****`) が表示されることを確認します。想定外のリソースが含まれている場合は、この段階でテンプレートや既存リソースを調整してください。
 
 3. Complete モードを適用し、テンプレートに存在しないリソースが削除されることを確認します。`-Confirm` のプロンプトに応答し、完了後に `Get-AzStorageAccount -ResourceGroupName $rgName` などで構成がテンプレートと一致するか検証します。
 
