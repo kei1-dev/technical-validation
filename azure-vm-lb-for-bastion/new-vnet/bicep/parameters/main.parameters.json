@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "japaneast"
+    },
+    "rgLbName": {
+      "value": "rg-lb-bastion"
+    },
+    "rgVmName": {
+      "value": "rg-vm-bastion"
+    },
+    "allowedSshSourceIp": {
+      "value": "*"
+    },
+    "lbVnetName": {
+      "value": "vnet-lb"
+    },
+    "lbVnetAddressPrefix": {
+      "value": "10.1.0.0/16"
+    },
+    "lbSubnetPrefix": {
+      "value": "10.1.1.0/24"
+    },
+    "vmVnetName": {
+      "value": "vnet-vm"
+    },
+    "vmVnetAddressPrefix": {
+      "value": "10.2.0.0/16"
+    },
+    "vmSubnetPrefix": {
+      "value": "10.2.1.0/24"
+    },
+    "vmCount": {
+      "value": 3
+    },
+    "vmSize": {
+      "value": "Standard_B2s"
+    },
+    "adminUsername": {
+      "value": "azureuser"
+    },
+    "sshKeyName": {
+      "value": "ssh-bastion"
+    },
+    "natStartPort": {
+      "value": 2201
+    }
+  }
+}

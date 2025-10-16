@@ -1,0 +1,39 @@
+# SSH Keys (downloaded from Azure)
+.ssh/
+*.pem
+*.key
+*.pub
+
+# Azure Bicep build artifacts
+*.json
+!bicep/parameters/*.json
+!bicep/modules/*.json
+!package*.json
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
