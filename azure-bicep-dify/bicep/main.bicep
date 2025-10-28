@@ -227,6 +227,32 @@ module privateDnsZoneKeyVault 'modules/privateDnsZone.bicep' = {
   }
 }
 
+module privateDnsZoneContainerApps 'modules/privateDnsZone.bicep' = {
+  name: 'privateDnsZoneContainerApps-deployment'
+  params: {
+    privateDnsZoneName: containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain
+    vnetId: network.outputs.vnetId
+    tags: tags
+  }
+  dependsOn: [
+    containerAppsEnv
+  ]
+}
+
+// Wildcard DNS A Record for Container Apps (enables name resolution for all apps)
+module containerAppsDnsRecord 'modules/privateDnsRecord.bicep' = {
+  name: 'containerAppsDnsRecord-deployment'
+  params: {
+    privateDnsZoneName: containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain
+    recordName: '*'
+    ipAddress: containerAppsEnv.outputs.containerAppsEnvironmentStaticIp
+    tags: tags
+  }
+  dependsOn: [
+    privateDnsZoneContainerApps
+  ]
+}
+
 // 8. Private Endpoints
 module privateEndpointPostgres 'modules/privateEndpoint.bicep' = {
   name: 'privateEndpointPostgres-deployment'
@@ -328,7 +354,7 @@ module containerAppWeb 'modules/containerApp.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     enableIngress: true
-    ingressExternal: false
+    ingressExternal: true
     environmentVariables: [
       {
         name: 'CONSOLE_API_URL'
@@ -372,7 +398,7 @@ module containerAppApi 'modules/containerApp.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     enableIngress: true
-    ingressExternal: false
+    ingressExternal: true
     environmentVariables: [
       {
         name: 'MODE'
@@ -533,6 +559,7 @@ module applicationGateway 'modules/applicationGateway.bicep' = {
     managedIdentityId: keyvault.outputs.appGatewayIdentityId
     backendFqdnWeb: containerAppWeb.outputs.containerAppFqdn
     backendFqdnApi: containerAppApi.outputs.containerAppFqdn
+    containerAppsStaticIp: containerAppsEnv.outputs.containerAppsEnvironmentStaticIp
     sslCertificateSecretId: sslCertificateSecretId
   }
   dependsOn: [

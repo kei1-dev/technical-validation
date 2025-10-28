@@ -43,6 +43,9 @@ param backendFqdnWeb string
 @description('Backend FQDNs - dify-api')
 param backendFqdnApi string
 
+@description('Container Apps Environment Static IP (for internal VNet)')
+param containerAppsStaticIp string
+
 @description('Key Vault SSL Certificate Secret ID (optional, for HTTPS)')
 param sslCertificateSecretId string = ''
 
@@ -209,11 +212,11 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
       {
         name: backendHttpSettingsNameWeb
         properties: {
-          port: 443
-          protocol: 'Https'
+          port: 80
+          protocol: 'Http'
           cookieBasedAffinity: 'Disabled'
           pickHostNameFromBackendAddress: true
-          requestTimeout: 30
+          requestTimeout: 60
           probe: {
             id: resourceId('Microsoft.Network/applicationGateways/probes', appGatewayName, probeNameWeb)
           }
@@ -222,8 +225,8 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
       {
         name: backendHttpSettingsNameApi
         properties: {
-          port: 443
-          protocol: 'Https'
+          port: 80
+          protocol: 'Http'
           cookieBasedAffinity: 'Disabled'
           pickHostNameFromBackendAddress: true
           requestTimeout: 60
@@ -313,10 +316,10 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
       {
         name: probeNameWeb
         properties: {
-          protocol: 'Https'
+          protocol: 'Http'
           path: '/'
-          interval: 30
-          timeout: 30
+          interval: 60
+          timeout: 60
           unhealthyThreshold: 3
           pickHostNameFromBackendHttpSettings: true
           minServers: 0
@@ -330,10 +333,10 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
       {
         name: probeNameApi
         properties: {
-          protocol: 'Https'
-          path: '/api/health'
-          interval: 30
-          timeout: 30
+          protocol: 'Http'
+          path: '/health'
+          interval: 60
+          timeout: 60
           unhealthyThreshold: 3
           pickHostNameFromBackendHttpSettings: true
           minServers: 0

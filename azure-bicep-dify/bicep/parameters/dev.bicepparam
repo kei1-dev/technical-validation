@@ -83,6 +83,6 @@ param difyWebImage = 'langgenius/dify-web:latest'
 param difyApiImage = 'langgenius/dify-api:latest'
 param difyWorkerImage = 'langgenius/dify-api:latest'
 
-// Dev environment: min=0 for cost savings (scale to zero)
-param containerAppMinReplicas = 0
+// Dev environment: min=1 to avoid 502 errors (at least 1 replica always running)
+param containerAppMinReplicas = 1
 param containerAppMaxReplicas = 5

@@ -77,7 +77,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         external: ingressExternal
         targetPort: containerPort
         transport: 'http'
-        allowInsecure: false
+        allowInsecure: true
         traffic: [
           {
             latestRevision: true
