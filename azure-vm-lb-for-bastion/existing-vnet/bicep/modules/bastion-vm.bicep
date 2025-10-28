@@ -11,11 +11,12 @@ param vmIndex int
 param vmSize string = 'Standard_B2s'
 
 @description('Admin username.')
-@secure()
 param adminUsername string
 
-@description('SSH public key for authentication.')
-param sshPublicKey string
+@description('Admin password for authentication.')
+@secure()
+@minLength(12)
+param adminPassword string
 
 @description('OS disk type.')
 @allowed([
@@ -100,16 +101,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
     osProfile: {
       computerName: vmName
       adminUsername: adminUsername
+      adminPassword: adminPassword
       linuxConfiguration: {
-        disablePasswordAuthentication: true
-        ssh: {
-          publicKeys: [
-            {
-              path: '/home/${adminUsername}/.ssh/authorized_keys'
-              keyData: sshPublicKey
-            }
-          ]
-        }
+        disablePasswordAuthentication: false
       }
     }
     networkProfile: {

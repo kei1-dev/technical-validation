@@ -9,50 +9,40 @@ param rgLbName string = 'rg-lb-bastion'
 @description('Name of the resource group for VM resources.')
 param rgVmName string = 'rg-vm-bastion'
 
-@description('Name of the resource group for Hub VNet (existing).')
-param rgHubName string = 'rg-hub'
+@description('Resource group name of the existing VNet.')
+param vnetResourceGroup string
 
-@description('Resource ID of the existing Hub VNet subnet for Private Endpoint.')
-param hubPeSubnetId string
+@description('Name of the existing VNet.')
+param vnetName string
 
-@description('Resource ID of the existing LB subnet.')
-param lbSubnetId string
-
-@description('Resource ID of the existing Private Link Service subnet.')
-param plsSubnetId string
-
-@description('Resource ID of the existing VM subnet.')
-param vmSubnetId string
-
-@description('Address prefix of the LB subnet (for NSG rules).')
+@description('Address prefix for LB subnet (new subnet to create).')
 param lbSubnetPrefix string = '10.1.1.0/24'
+
+@description('Address prefix for PLS subnet (new subnet to create).')
+param plsSubnetPrefix string = '10.1.2.0/24'
+
+@description('Address prefix for VM subnet (new subnet to create).')
+param vmSubnetPrefix string = '10.1.3.0/24'
 
 @description('Private IP address for Internal Load Balancer.')
 param ilbPrivateIp string = '10.1.1.4'
-
-@description('Number of bastion VMs to deploy.')
-@minValue(1)
-@maxValue(10)
-param vmCount int = 3
 
 @description('VM size for bastion VMs.')
 param vmSize string = 'Standard_B2s'
 
 @description('Admin username for VMs.')
-@secure()
 param adminUsername string
 
-@description('Name of the SSH Public Key resource to be created.')
-param sshKeyName string = 'ssh-bastion'
+@description('Admin password for VMs.')
+@secure()
+@minLength(12)
+param adminPassword string
 
 @description('Starting port for SSH NAT rules.')
 param natStartPort int = 2201
 
 @description('Auto-approval subscription IDs for Private Link (optional).')
 param plsAutoApprovalSubscriptions array = []
-
-@description('Deploy NSGs for subnets (set to false if NSGs already exist).')
-param deployNsgs bool = true
 
 // Resource Group for Load Balancer
 resource rgLb 'Microsoft.Resources/resourceGroups@2023-07-01' = {
@@ -66,18 +56,19 @@ resource rgVm 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   location: location
 }
 
-// SSH Public Key (Azure-managed)
-module sshKey 'modules/ssh-key.bicep' = {
-  name: 'ssh-key-bastion'
-  scope: rgVm
+// NSG for Load Balancer subnet
+module nsgLb 'modules/nsg.bicep' = {
+  name: 'nsg-lb'
+  scope: rgLb
   params: {
     location: location
-    sshKeyName: sshKeyName
+    nsgName: 'nsg-lb'
+    nsgType: 'lb'
   }
 }
 
-// NSG for Private Link Service subnet (optional)
-module nsgPls 'modules/nsg.bicep' = if (deployNsgs) {
+// NSG for Private Link Service subnet
+module nsgPls 'modules/nsg.bicep' = {
   name: 'nsg-pls'
   scope: rgLb
   params: {
@@ -87,8 +78,8 @@ module nsgPls 'modules/nsg.bicep' = if (deployNsgs) {
   }
 }
 
-// NSG for VM subnet (optional)
-module nsgVm 'modules/nsg.bicep' = if (deployNsgs) {
+// NSG for VM subnet
+module nsgVm 'modules/nsg.bicep' = {
   name: 'nsg-vm'
   scope: rgVm
   params: {
@@ -99,6 +90,45 @@ module nsgVm 'modules/nsg.bicep' = if (deployNsgs) {
   }
 }
 
+// Subnet for Load Balancer
+module subnetLb 'modules/subnet.bicep' = {
+  name: 'subnet-lb'
+  scope: resourceGroup(vnetResourceGroup)
+  params: {
+    vnetName: vnetName
+    subnetName: 'snet-lb'
+    addressPrefix: lbSubnetPrefix
+    nsgId: nsgLb.outputs.nsgId
+    disablePrivateLinkServiceNetworkPolicies: false
+  }
+}
+
+// Subnet for Private Link Service
+module subnetPls 'modules/subnet.bicep' = {
+  name: 'subnet-pls'
+  scope: resourceGroup(vnetResourceGroup)
+  params: {
+    vnetName: vnetName
+    subnetName: 'snet-pls'
+    addressPrefix: plsSubnetPrefix
+    nsgId: nsgPls.outputs.nsgId
+    disablePrivateLinkServiceNetworkPolicies: true
+  }
+}
+
+// Subnet for VMs
+module subnetVm 'modules/subnet.bicep' = {
+  name: 'subnet-vm'
+  scope: resourceGroup(vnetResourceGroup)
+  params: {
+    vnetName: vnetName
+    subnetName: 'snet-vm'
+    addressPrefix: vmSubnetPrefix
+    nsgId: nsgVm.outputs.nsgId
+    disablePrivateLinkServiceNetworkPolicies: false
+  }
+}
+
 // Internal Load Balancer
 module ilb 'modules/internal-lb.bicep' = {
   name: 'ilb-bastion'
@@ -106,9 +136,8 @@ module ilb 'modules/internal-lb.bicep' = {
   params: {
     location: location
     lbName: 'ilb-bastion'
-    subnetId: lbSubnetId
+    subnetId: subnetLb.outputs.subnetId
     privateIpAddress: ilbPrivateIp
-    vmCount: vmCount
     natStartPort: natStartPort
   }
 }
@@ -120,47 +149,28 @@ module pls 'modules/private-link-service.bicep' = {
   params: {
     location: location
     plsName: 'pls-bastion'
-    subnetId: plsSubnetId
+    subnetId: subnetPls.outputs.subnetId
     loadBalancerFrontendIpConfigId: ilb.outputs.frontendIpConfigId
     autoApprovalSubscriptions: plsAutoApprovalSubscriptions
   }
-  dependsOn: [
-    ilb
-  ]
 }
 
-// Private Endpoint in Hub VNet
-module pe 'modules/private-endpoint.bicep' = {
-  name: 'pe-bastion'
-  scope: resourceGroup(rgHubName)
-  params: {
-    location: location
-    peName: 'pe-bastion-pls'
-    subnetId: hubPeSubnetId
-    privateLinkServiceId: pls.outputs.plsId
-  }
-}
-
-// Bastion VMs
-module bastionVms 'modules/bastion-vm.bicep' = [for i in range(0, vmCount): {
-  name: 'bastion-vm-${i + 1}'
+// Bastion VM (single VM)
+module bastionVm 'modules/bastion-vm.bicep' = {
+  name: 'bastion-vm-1'
   scope: rgVm
   params: {
     location: location
     vmNamePrefix: 'vm-bastion'
-    vmIndex: i + 1
+    vmIndex: 1
     vmSize: vmSize
     adminUsername: adminUsername
-    sshPublicKey: sshKey.outputs.publicKey
-    subnetId: vmSubnetId
+    adminPassword: adminPassword
+    subnetId: subnetVm.outputs.subnetId
     backendPoolId: ilb.outputs.backendPoolId
-    natRuleId: ilb.outputs.natRuleIds[i]
+    natRuleId: ilb.outputs.natRuleId
   }
-  dependsOn: [
-    ilb
-    sshKey
-  ]
-}]
+}
 
 // Outputs
 @description('Resource ID of the Load Balancer resource group.')
@@ -172,24 +182,28 @@ output rgVmId string = rgVm.id
 @description('Private IP address of the Internal Load Balancer.')
 output ilbPrivateIp string = ilb.outputs.lbPrivateIp
 
-@description('Alias of the Private Link Service.')
+@description('Alias of the Private Link Service for external connection.')
 output plsAlias string = pls.outputs.plsAlias
 
-@description('Private IP address of the Private Endpoint.')
-output pePrivateIp string = pe.outputs.pePrivateIp
+@description('Resource ID of the Private Link Service.')
+output plsId string = pls.outputs.plsId
 
-@description('SSH connection information for each VM.')
-output sshConnectionInfo array = [for i in range(0, vmCount): {
-  vmName: 'vm-bastion-${i + 1}'
-  sshCommand: 'ssh ${adminUsername}@${pe.outputs.pePrivateIp} -p ${natStartPort + i}'
-  natPort: natStartPort + i
-}]
+@description('SSH connection information (via ILB within same VNet).')
+output sshConnectionInfo object = {
+  vmName: 'vm-bastion-1'
+  sshCommand: 'ssh ${adminUsername}@${ilb.outputs.lbPrivateIp} -p ${natStartPort}'
+  natPort: natStartPort
+  ilbPrivateIp: ilb.outputs.lbPrivateIp
+}
 
-@description('Name of the SSH Key resource.')
-output sshKeyName string = sshKey.outputs.sshKeyName
+@description('Instructions for SSH connection.')
+output connectionInstructions string = '''
+# Within same VNet:
+ssh ${adminUsername}@${ilb.outputs.lbPrivateIp} -p ${natStartPort}
 
-@description('Resource group of the SSH Key.')
-output sshKeyResourceGroup string = rgVmName
+# From another VNet (create Private Endpoint first):
+1. Create Private Endpoint in your Hub VNet using PLS Alias: ${pls.outputs.plsAlias}
+2. Connect via: ssh ${adminUsername}@<Private-Endpoint-IP> -p ${natStartPort}
 
-@description('Instructions for downloading the private key.')
-output privateKeyInstructions string = 'IMPORTANT: Download the private key immediately after deployment using:\naz ssh config --ip ${pe.outputs.pePrivateIp} --file ~/.ssh/config --name ${sshKeyName} --resource-group ${rgVmName} --local-user ${adminUsername}\nOR generate key file:\naz sshkey show --resource-group ${rgVmName} --name ${sshKeyName} --query "publicKey" -o tsv > ~/.ssh/${sshKeyName}.pub'
+Password authentication is enabled. Add SSH keys after deployment via Azure Portal if needed.
+'''

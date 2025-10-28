@@ -11,47 +11,38 @@
     "rgVmName": {
       "value": "rg-vm-bastion"
     },
-    "rgHubName": {
-      "value": "rg-hub"
+    "vnetResourceGroup": {
+      "value": "<VNET_RG_NAME>"
     },
-    "hubPeSubnetId": {
-      "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-hub/providers/Microsoft.Network/virtualNetworks/vnet-hub/subnets/snet-pe"
-    },
-    "lbSubnetId": {
-      "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<LB_RG_NAME>/providers/Microsoft.Network/virtualNetworks/<LB_VNET_NAME>/subnets/snet-lb"
-    },
-    "plsSubnetId": {
-      "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<LB_RG_NAME>/providers/Microsoft.Network/virtualNetworks/<LB_VNET_NAME>/subnets/snet-pls"
-    },
-    "vmSubnetId": {
-      "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<VM_RG_NAME>/providers/Microsoft.Network/virtualNetworks/<VM_VNET_NAME>/subnets/snet-vm"
+    "vnetName": {
+      "value": "<VNET_NAME>"
     },
     "lbSubnetPrefix": {
       "value": "10.1.1.0/24"
     },
+    "plsSubnetPrefix": {
+      "value": "10.1.2.0/24"
+    },
+    "vmSubnetPrefix": {
+      "value": "10.1.3.0/24"
+    },
     "ilbPrivateIp": {
       "value": "10.1.1.4"
     },
-    "vmCount": {
-      "value": 3
-    },
     "vmSize": {
-      "value": "Standard_B2s"
+      "value": "Standard_B1s"
     },
     "adminUsername": {
       "value": "azureuser"
     },
-    "sshKeyName": {
-      "value": "ssh-bastion"
+    "adminPassword": {
+      "value": "P@ssw0rd1234!Test"
     },
     "natStartPort": {
       "value": 2201
     },
     "plsAutoApprovalSubscriptions": {
       "value": []
-    },
-    "deployNsgs": {
-      "value": false
     }
   }
 }

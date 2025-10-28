@@ -41,6 +41,3 @@ output peId string = privateEndpoint.id
 
 @description('Name of the Private Endpoint.')
 output peName string = privateEndpoint.name
-
-@description('Private IP address of the Private Endpoint.')
-output pePrivateIp string = privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]

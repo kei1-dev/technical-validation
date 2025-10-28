@@ -12,14 +12,8 @@ resource sshKey 'Microsoft.Compute/sshPublicKeys@2023-09-01' = {
   location: location
   tags: tags
   properties: {
-    // Leave empty to let Azure generate the key pair
+    // Azure will generate the key pair automatically when publicKey is not provided
   }
-}
-
-// Generate the SSH key pair (Azure will create both public and private keys)
-resource keyGeneration 'Microsoft.Compute/sshPublicKeys/generateKeyPair@2023-09-01' = {
-  name: sshKey.name
-  properties: {}
 }
 
 @description('Resource ID of the SSH Public Key.')

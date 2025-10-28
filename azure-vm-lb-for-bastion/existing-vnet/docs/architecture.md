@@ -1,6 +1,6 @@
 # Azure 踏み台VM + Private Link + Internal Load Balancer 構成（既存VNet版）
 
-既存のVNet・Subnet（Peering接続済み）を利用して、オンプレミス環境から Azure 内の複数踏み台VMに対して Private Link Service経由でセキュアにSSH接続するためのアーキテクチャです。
+既存のVNet・Subnetを利用して、同一VNet内に Internal Load Balancer、Private Link Service、踏み台VMを配置し、Private Link Service経由で外部VNetからセキュアにSSH接続するためのアーキテクチャです。
 
 ---
 
@@ -21,31 +21,33 @@
 ### 設計目標
 
 - **既存VNetを活用**: 新たにVNetを作成せず、既存のネットワークインフラを利用
-- **Peering接続済み前提**: LB用VNetとVM用VNetは既にPeering接続されている
-- オンプレミスから Azure 踏み台VMへの**完全プライベート接続**（インターネット非経由）
-- 複数踏み台VMへの**単一エントリポイント**（Private Link Service経由）
+- **Subnet自動作成**: 必要なSubnetを自動的に作成
+- **同一VNet構成**: LB、Private Link Service、VMを同一VNet内の別Subnetに配置
+- 外部VNetから Azure 踏み台VMへの**完全プライベート接続**（Private Link Service経由）
+- 踏み台VMへの**単一エントリポイント**（Internal Load Balancer経由）
 
 ### 適用シナリオ
 
 このバージョンは以下のケースに最適です：
 
-1. **既存ネットワーク環境への追加**: 既にVNetとSubnetが構築済みの環境
-2. **ネットワーク設計が確定済み**: VNetアドレス範囲やSubnet設計が既に完了
-3. **Peering接続が設定済み**: VNet間の通信経路が確立済み
-4. **最小限の変更**: 既存ネットワークに影響を与えず、LBとVMのみをデプロイ
+1. **既存ネットワーク環境への追加**: 既にVNetが構築済みの環境
+2. **VNet設計が確定済み**: VNetアドレス範囲が既に完了（Subnetは自動作成）
+3. **同一VNet内での構成**: LB、PLS、VMを同一VNet内に集約したい場合
+4. **最小限の変更**: 既存VNetに影響を与えず、Subnetとリソースのみをデプロイ
 
 ---
 
 ## 新規VNet版との違い
 
-| 項目 | 新規VNet版 (`main.bicep`) | 既存VNet版 (`main-existing-vnet.bicep`) |
+| 項目 | 新規VNet版 (`main.bicep`) | 既存VNet版 (`main.bicep`) |
 |------|-------------------------|--------------------------------------|
 | **VNet作成** | 新規作成 | 既存VNetを利用 |
-| **Subnet作成** | 新規作成 | 既存Subnetを利用 |
-| **VNet Peering** | 新規作成 | 既存Peering接続を利用 |
-| **NSG** | 新規作成（デフォルト） | オプション（`deployNsgs`パラメータで制御） |
-| **パラメータ** | VNetアドレス範囲を指定 | SubnetリソースIDを指定 |
-| **デプロイ対象** | VNet + LB + VM | LB + VM のみ |
+| **Subnet作成** | 新規作成 | 新規作成 |
+| **Load Balancer** | Public LB（インターネット経由） | Internal LB（プライベート） |
+| **Private Link Service** | なし | あり（外部VNet接続用） |
+| **NSG** | 新規作成 | 新規作成 |
+| **パラメータ** | VNetアドレス範囲を指定 | VNetリソースID + Subnet CIDR範囲を指定 |
+| **デプロイ対象** | VNet + Public LB + VM | Subnet + NSG + ILB + PLS + VM |
 | **適用環境** | 新規環境、検証環境 | 既存環境、本番環境 |
 
 ---
@@ -56,20 +58,15 @@
 
 ```mermaid
 graph TB
-    subgraph OnPrem["オンプレミス環境"]
-        Client["管理者PC<br/>(SSH Client)"]
+    subgraph External["外部VNet（Hub VNet等）"]
+        PE["Private Endpoint<br/>(別途作成)"]
     end
 
     subgraph Azure["Azure Cloud"]
-        subgraph HubVNet["Hub VNet<br/>(既存: オンプレ接続用)"]
-            ER["ExpressRoute<br/>Gateway"]
-            PE["Private Endpoint<br/>(新規デプロイ)"]
-        end
-
-        subgraph RG_A["RG-A: LB用リソースグループ"]
-            subgraph VNetA["VNet-A (既存)<br/>(10.1.0.0/16)"]
+        subgraph RG_LB["RG-LB: Load Balancer用リソースグループ"]
+            subgraph VNet["VNet (既存)<br/>(10.1.0.0/16)"]
                 subgraph SubnetLB["LB Subnet (既存)<br/>(10.1.1.0/24)"]
-                    ILB["Internal Load Balancer<br/>(新規デプロイ)"]
+                    ILB["Internal Load Balancer<br/>(新規デプロイ)<br/>10.1.1.4"]
                 end
                 subgraph SubnetPLS["PLS Subnet (既存)<br/>(10.1.2.0/24)"]
                     PLS["Private Link Service<br/>(新規デプロイ)"]
@@ -77,38 +74,35 @@ graph TB
             end
         end
 
-        subgraph RG_B["RG-B: VM用リソースグループ"]
-            subgraph VNetB["VNet-B (既存)<br/>(10.2.0.0/16)"]
-                subgraph SubnetVM["VM Subnet (既存)<br/>(10.2.1.0/24)"]
-                    VM1["踏み台VM1<br/>(新規デプロイ)"]
-                    VM2["踏み台VM2<br/>(新規デプロイ)"]
-                    VM3["踏み台VM3<br/>(新規デプロイ)"]
+        subgraph RG_VM["RG-VM: VM用リソースグループ"]
+            subgraph VNet2["VNet (既存)<br/>(10.1.0.0/16)"]
+                subgraph SubnetVM["VM Subnet (既存)<br/>(10.1.3.0/24)"]
+                    VM1["踏み台VM<br/>(新規デプロイ)"]
                 end
             end
         end
     end
 
-    Client -->|ExpressRoute/VPN| ER
-    ER --> PE
-    PE -->|プライベート接続| PLS
+    PE -.->|プライベート接続<br/>（別途構成）| PLS
     PLS --> ILB
     ILB -->|NAT: 2201→22| VM1
-    ILB -->|NAT: 2202→22| VM2
-    ILB -->|NAT: 2203→22| VM3
-    VNetA -.->|VNet Peering<br/>(既存)| VNetB
 
-    style OnPrem fill:#f9f,stroke:#333,stroke-width:2px
+    style External fill:#fff4e6,stroke:#ff9800,stroke-width:2px,stroke-dasharray: 5 5
     style Azure fill:#e1f5ff,stroke:#333,stroke-width:2px
-    style HubVNet fill:#fff4e6,stroke:#ff9800,stroke-width:2px
-    style RG_A fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
-    style RG_B fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
-    style VNetA stroke:#666,stroke-width:3px,stroke-dasharray: 5 5
-    style VNetB stroke:#666,stroke-width:3px,stroke-dasharray: 5 5
+    style RG_LB fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style RG_VM fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
+    style VNet stroke:#666,stroke-width:3px,stroke-dasharray: 5 5
+    style VNet2 stroke:#666,stroke-width:3px,stroke-dasharray: 5 5
 ```
 
 **凡例:**
 - 実線枠: 新規デプロイされるリソース
-- 破線枠: 既存のリソース
+- 破線枠: 既存のリソースまたは別途構成が必要なリソース
+
+**注意:**
+- このテンプレートでは Private Endpoint は含まれません
+- Private Endpoint は外部VNet（Hub VNet等）から別途作成してください
+- LB、PLS、VMは同一VNet内の異なるSubnetに配置されます
 
 ---
 
@@ -118,28 +112,16 @@ graph TB
 
 以下のリソースが**事前に構築済み**である必要があります：
 
-#### 1. Hub VNet
-- ExpressRoute または VPN Gateway が接続済み
-- Private Endpoint用のSubnetが存在
+#### 1. VNet
+- 既存のVNetが必要です
+- VNetには新規Subnet作成に必要な十分なアドレス空間が必要です
+- 推奨: 最低3つの /24 Subnet分のアドレス空間（例: /16 VNet）
 
-#### 2. LB用VNet (VNet-A)
-- **LB Subnet**: Internal Load Balancer配置用
-  - 推奨サイズ: `/24` 以上
-  - 利用可能なIPアドレスが最低5個以上
-- **PLS Subnet**: Private Link Service配置用
-  - 推奨サイズ: `/24` 以上
-  - `privateLinkServiceNetworkPolicies` が `Disabled` であること
+**注意:**
+- Subnetは自動的に作成されます（事前作成不要）
+- NSGも自動的に作成されます
 
-#### 3. VM用VNet (VNet-B)
-- **VM Subnet**: 踏み台VM配置用
-  - 推奨サイズ: `/24` 以上
-  - VMの台数分のIPアドレスが確保可能
-
-#### 4. VNet Peering
-- VNet-A ⇔ VNet-B 間でPeeringが**双方向**に設定済み
-- Peering状態が `Connected` であること
-
-#### 5. その他
+#### 2. その他
 - Azure CLI (`az`) インストール済み
 - Bicep CLI インストール済み
 - Azure サブスクリプションへのContributor以上の権限
@@ -152,25 +134,39 @@ graph TB
 
 | リソース | 種類 | 配置先 | 詳細 |
 |---------|------|--------|------|
-| SSH Public Key | Microsoft.Compute/sshPublicKeys | RG-B (VM用RG) | Azure生成のSSHキーペア |
-| Internal Load Balancer | Microsoft.Network/loadBalancers | RG-A (LB用RG) | Standard SKU、NAT Rules設定 |
-| Private Link Service | Microsoft.Network/privateLinkServices | RG-A (LB用RG) | ILBのフロントエンドを公開 |
-| Private Endpoint | Microsoft.Network/privateEndpoints | Hub VNet RG | PLSへの接続エンドポイント |
-| 踏み台VM (複数台) | Microsoft.Compute/virtualMachines | RG-B (VM用RG) | Ubuntu 22.04 LTS |
-| NSG (オプション) | Microsoft.Network/networkSecurityGroups | RG-A, RG-B | `deployNsgs=true` の場合のみ |
+| Subnet × 3 | Microsoft.Network/virtualNetworks/subnets | 既存VNet | LB用、PLS用、VM用 |
+| NSG × 3 | Microsoft.Network/networkSecurityGroups | RG-LB, RG-VM | LB用、PLS用、VM用 |
+| Internal Load Balancer | Microsoft.Network/loadBalancers | RG-LB | Standard SKU、NAT Rules設定 |
+| Private Link Service | Microsoft.Network/privateLinkServices | RG-LB | ILBのフロントエンドを公開 |
+| 踏み台VM (1台) | Microsoft.Compute/virtualMachines | RG-VM | Ubuntu 22.04 LTS、パスワード認証 |
 
-### 既存リソースの参照方法
+**注意:**
+- SSHキーは含まれません。デプロイ後にAzure Portalから追加してください
+- Private Endpointは含まれません。外部VNetから接続する場合は別途作成してください
+- VNetは既存のものを利用します（新規作成しません）
 
-Bicepテンプレートでは、以下のようにリソースIDで既存リソースを参照します：
+### 既存リソースの参照とSubnet作成
+
+Bicepテンプレートでは、以下のように既存VNetを参照し、新規Subnetを作成します：
 
 ```bicep
-// パラメータでSubnetリソースIDを受け取る
-param lbSubnetId string
+// パラメータで既存VNet情報を受け取る
+param vnetResourceGroup string
+param vnetName string
+param lbSubnetPrefix string
 
-// Internal Load Balancerデプロイ時に既存Subnetを指定
-module ilb 'modules/internal-lb.bicep' = {
-  params: {
-    subnetId: lbSubnetId  // 既存SubnetのリソースID
+// 既存VNetを参照
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
+  name: vnetName
+  scope: resourceGroup(vnetResourceGroup)
+}
+
+// 新規Subnetを作成
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
+  name: 'snet-lb'
+  parent: vnet
+  properties: {
+    addressPrefix: lbSubnetPrefix
   }
 }
 ```
@@ -179,94 +175,73 @@ module ilb 'modules/internal-lb.bicep' = {
 
 ## デプロイ手順
 
-### 1. 既存リソースのリソースIDを取得
+### 1. 既存VNetの情報を取得
 
-既存のSubnetリソースIDを取得します。
+既存のVNetのリソースIDとアドレス空間を確認します。
 
 ```bash
-# LB Subnet ID
-az network vnet subnet show \
-  --resource-group <LB_RG_NAME> \
-  --vnet-name <LB_VNET_NAME> \
-  --name snet-lb \
+# VNet リソースID
+az network vnet show \
+  --resource-group <VNET_RG_NAME> \
+  --vnet-name <VNET_NAME> \
   --query id -o tsv
 
-# PLS Subnet ID
-az network vnet subnet show \
-  --resource-group <LB_RG_NAME> \
-  --vnet-name <LB_VNET_NAME> \
-  --name snet-pls \
-  --query id -o tsv
+# VNet アドレス空間の確認
+az network vnet show \
+  --resource-group <VNET_RG_NAME> \
+  --vnet-name <VNET_NAME> \
+  --query addressSpace.addressPrefixes -o table
 
-# VM Subnet ID
-az network vnet subnet show \
-  --resource-group <VM_RG_NAME> \
-  --vnet-name <VM_VNET_NAME> \
-  --name snet-vm \
-  --query id -o tsv
-
-# Hub PE Subnet ID
-az network vnet subnet show \
-  --resource-group rg-hub \
-  --vnet-name vnet-hub \
-  --name snet-pe \
-  --query id -o tsv
+# 既存Subnetの確認（未使用のアドレス範囲を特定）
+az network vnet subnet list \
+  --resource-group <VNET_RG_NAME> \
+  --vnet-name <VNET_NAME> \
+  --query "[].{Name:name, AddressPrefix:addressPrefix}" -o table
 ```
 
 ### 2. パラメータファイルの編集
 
-`bicep/parameters/main-existing-vnet.parameters.json` を編集します：
+`bicep/parameters/main.parameters.json` を編集します：
 
 ```json
 {
-  "hubPeSubnetId": {
-    "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-hub/providers/Microsoft.Network/virtualNetworks/vnet-hub/subnets/snet-pe"
+  "vnetId": {
+    "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<VNET_RG_NAME>/providers/Microsoft.Network/virtualNetworks/<VNET_NAME>"
   },
-  "lbSubnetId": {
-    "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<LB_RG>/providers/Microsoft.Network/virtualNetworks/<LB_VNET>/subnets/snet-lb"
+  "vnetResourceGroup": {
+    "value": "<VNET_RG_NAME>"
   },
-  "plsSubnetId": {
-    "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<LB_RG>/providers/Microsoft.Network/virtualNetworks/<LB_VNET>/subnets/snet-pls"
-  },
-  "vmSubnetId": {
-    "value": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<VM_RG>/providers/Microsoft.Network/virtualNetworks/<VM_VNET>/subnets/snet-vm"
+  "vnetName": {
+    "value": "<VNET_NAME>"
   },
   "lbSubnetPrefix": {
     "value": "10.1.1.0/24"
   },
-  "deployNsgs": {
-    "value": false
+  "plsSubnetPrefix": {
+    "value": "10.1.2.0/24"
+  },
+  "vmSubnetPrefix": {
+    "value": "10.1.3.0/24"
+  },
+  "ilbPrivateIp": {
+    "value": "10.1.1.4"
+  },
+  "adminUsername": {
+    "value": "azureuser"
+  },
+  "adminPassword": {
+    "value": "YourSecurePassword123!"
   }
 }
 ```
 
 **重要パラメータ:**
-- `lbSubnetPrefix`: NSGルール作成に使用（既存SubnetのCIDR範囲）
-- `deployNsgs`: 既存NSGがある場合は `false` に設定
+- `vnetId` / `vnetResourceGroup` / `vnetName`: 既存VNetの情報
+- `lbSubnetPrefix` / `plsSubnetPrefix` / `vmSubnetPrefix`: 新規作成するSubnetのCIDR範囲（既存Subnetと重複しない範囲）
+- `ilbPrivateIp`: Internal Load BalancerのプライベートIP（lbSubnetPrefix内のIPアドレス）
+- `adminPassword`: 最低12文字、大文字・小文字・数字・記号を含む必要があります
 
-### 3. VNet Peeringの確認
-
-VNet間のPeering接続が正常であることを確認します。
-
-```bash
-# VNet-A → VNet-B のPeering状態確認
-az network vnet peering show \
-  --resource-group <LB_RG_NAME> \
-  --vnet-name <LB_VNET_NAME> \
-  --name <PEERING_NAME> \
-  --query peeringState
-
-# VNet-B → VNet-A のPeering状態確認
-az network vnet peering show \
-  --resource-group <VM_RG_NAME> \
-  --vnet-name <VM_VNET_NAME> \
-  --name <PEERING_NAME> \
-  --query peeringState
-```
-
-両方とも `Connected` であることを確認してください。
-
-### 4. デプロイスクリプトの実行
+### 3. デプロイスクリプトの実行
 
 ```bash
 cd scripts
@@ -278,13 +253,48 @@ chmod +x deploy-existing-vnet.sh
 
 1. 前提条件チェック
 2. パラメータファイル検証
-3. 既存リソース確認（手動確認プロンプト）
+3. 既存リソース確認
 4. what-if検証（オプション）
 5. デプロイ実行
 6. SSH接続方法案内
-7. Private Link接続承認
+
+### 4. 接続確認
+
+#### 同一VNet内からの接続
+
+```bash
+# 同一VNet内のVMやリソースから
+ssh azureuser@10.1.1.4 -p 2201
+```
+
+#### 外部VNetからの接続（Private Endpoint経由）
+
+外部VNetから接続する場合は、以下の手順でPrivate Endpointを作成してください：
+
+1. デプロイ出力から Private Link Service Alias を取得
+2. 外部VNet（Hub VNet等）に Private Endpoint を作成
+
+```bash
+# PLS Alias の取得
+az deployment sub show \
+  --name <DEPLOYMENT_NAME> \
+  --query properties.outputs.plsAlias.value -o tsv
+
+# Private Endpoint の作成（外部VNetから実行）
+az network private-endpoint create \
+  --resource-group <HUB_RG_NAME> \
+  --name pe-bastion \
+  --vnet-name <HUB_VNET_NAME> \
+  --subnet <HUB_SUBNET_NAME> \
+  --private-connection-resource-id <PLS_RESOURCE_ID> \
+  --connection-name conn-bastion \
+  --manual-request true \
+  --request-message "Connection from Hub VNet"
+```
 
 ### 5. Private Link接続の承認
+
+Private Endpoint作成後、接続を承認します：
 
 ```bash
 az network private-endpoint-connection approve \
@@ -313,27 +323,6 @@ az network vnet subnet show \
   --vnet-name <VNET_NAME> \
   --name <SUBNET_NAME> \
   --query id -o tsv
-```
-
-### 問題: VNet Peering not connected
-
-**原因:**
-- VNet Peering が正しく設定されていない
-- Peering状態が `Disconnected` または `Pending`
-
-**対処:**
-```bash
-# Peering状態を確認
-az network vnet peering list \
-  --resource-group <RG_NAME> \
-  --vnet-name <VNET_NAME> \
-  --query "[].{Name:name, State:peeringState}" -o table
-
-# Peering を再同期
-az network vnet peering sync \
-  --resource-group <RG_NAME> \
-  --vnet-name <VNET_NAME> \
-  --name <PEERING_NAME>
 ```
 
 ### 問題: Private Link Service の Subnet で NetworkPolicies エラー
@@ -379,9 +368,9 @@ az network nsg rule create \
 ## 参考リンク
 
 - [既存リソースの参照 (Bicep)](https://learn.microsoft.com/azure/azure-resource-manager/bicep/existing-resource)
-- [VNet Peering のトラブルシューティング](https://learn.microsoft.com/azure/virtual-network/virtual-network-troubleshoot-peering-issues)
 - [Private Link Service のネットワークポリシー](https://learn.microsoft.com/azure/private-link/disable-private-link-service-network-policy)
 - [Azure Load Balancer のトラブルシューティング](https://learn.microsoft.com/azure/load-balancer/load-balancer-troubleshoot)
+- [Azure Private Link Service](https://learn.microsoft.com/azure/private-link/private-link-service-overview)
 
 ---
 
@@ -389,4 +378,5 @@ az network nsg rule create \
 
 | 日付 | 変更内容 | 作成者 |
 |------|---------|--------|
+| 2025-10-17 | 同一VNet構成に変更（PE削除、VNet Peering削除、1台VM固定） | - |
 | 2025-10-16 | 初版作成（既存VNet版） | - |

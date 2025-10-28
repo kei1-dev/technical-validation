@@ -11,26 +11,23 @@
     "rgVmName": {
       "value": "rg-vm-bastion-test-20251016"
     },
-    "allowedSshSourceIp": {
-      "value": "*"
+    "vnetResourceGroup": {
+      "value": "rg-vm-bastion-test-20251016"
     },
-    "lbVnetName": {
-      "value": "vnet-lb"
-    },
-    "lbVnetAddressPrefix": {
-      "value": "10.1.0.0/16"
-    },
-    "lbSubnetPrefix": {
-      "value": "10.1.1.0/24"
-    },
-    "vmVnetName": {
+    "vnetName": {
       "value": "vnet-vm"
     },
-    "vmVnetAddressPrefix": {
-      "value": "10.2.0.0/16"
+    "lbSubnetPrefix": {
+      "value": "10.2.2.0/24"
+    },
+    "plsSubnetPrefix": {
+      "value": "10.2.3.0/24"
     },
     "vmSubnetPrefix": {
-      "value": "10.2.1.0/24"
+      "value": "10.2.4.0/24"
+    },
+    "ilbPrivateIp": {
+      "value": "10.2.2.4"
     },
     "vmSize": {
       "value": "Standard_B1s"
@@ -43,6 +40,9 @@
     },
     "natStartPort": {
       "value": 2201
+    },
+    "plsAutoApprovalSubscriptions": {
+      "value": []
     }
   }
 }

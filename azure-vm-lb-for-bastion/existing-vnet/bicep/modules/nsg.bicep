@@ -4,10 +4,11 @@ param location string = resourceGroup().location
 @description('Name of the NSG.')
 param nsgName string
 
-@description('Type of NSG: vm or pls.')
+@description('Type of NSG: vm, pls, or lb.')
 @allowed([
   'vm'
   'pls'
+  'lb'
 ])
 param nsgType string
 
@@ -76,8 +77,60 @@ resource nsgPls 'Microsoft.Network/networkSecurityGroups@2023-11-01' = if (nsgTy
   }
 }
 
+// Load Balancer Subnet用のNSG
+resource nsgLb 'Microsoft.Network/networkSecurityGroups@2023-11-01' = if (nsgType == 'lb') {
+  name: nsgName
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'Allow-AzureLoadBalancer'
+        properties: {
+          description: 'Allow Azure Load Balancer health probes'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'AzureLoadBalancer'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'Allow-VirtualNetwork-Inbound'
+        properties: {
+          description: 'Allow traffic from VNet'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 110
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'Deny-All-Inbound'
+        properties: {
+          description: 'Deny all other inbound traffic'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
+          access: 'Deny'
+          priority: 4096
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
 @description('Resource ID of the NSG.')
-output nsgId string = nsgType == 'vm' ? nsgVm.id : nsgPls.id
+output nsgId string = nsgType == 'vm' ? nsgVm.id : (nsgType == 'pls' ? nsgPls.id : nsgLb.id)
 
 @description('Name of the NSG.')
-output nsgName string = nsgType == 'vm' ? nsgVm.name : nsgPls.name
+output nsgName string = nsgType == 'vm' ? nsgVm.name : (nsgType == 'pls' ? nsgPls.name : nsgLb.name)

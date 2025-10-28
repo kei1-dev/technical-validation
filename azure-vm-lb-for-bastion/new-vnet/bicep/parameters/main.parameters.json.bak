@@ -6,10 +6,10 @@
       "value": "japaneast"
     },
     "rgLbName": {
-      "value": "rg-lb-bastion-test-20251016"
+      "value": "rg-lb-bastion"
     },
     "rgVmName": {
-      "value": "rg-vm-bastion-test-20251016"
+      "value": "rg-vm-bastion"
     },
     "allowedSshSourceIp": {
       "value": "*"
@@ -32,14 +32,17 @@
     "vmSubnetPrefix": {
       "value": "10.2.1.0/24"
     },
+    "vmCount": {
+      "value": 3
+    },
     "vmSize": {
-      "value": "Standard_B1s"
+      "value": "Standard_B2s"
     },
     "adminUsername": {
       "value": "azureuser"
     },
-    "adminPassword": {
-      "value": "P@ssw0rd1234!Test"
+    "sshKeyName": {
+      "value": "ssh-bastion"
     },
     "natStartPort": {
       "value": 2201

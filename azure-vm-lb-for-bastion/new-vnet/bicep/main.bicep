@@ -32,20 +32,16 @@ param vmVnetAddressPrefix string = '10.2.0.0/16'
 param vmSubnetPrefix string = '10.2.1.0/24'
 
 
-@description('Number of bastion VMs to deploy.')
-@minValue(1)
-@maxValue(10)
-param vmCount int = 3
-
 @description('VM size for bastion VMs.')
 param vmSize string = 'Standard_B2s'
 
 @description('Admin username for VMs.')
-@secure()
 param adminUsername string
 
-@description('Name of the SSH Public Key resource to be created.')
-param sshKeyName string = 'ssh-bastion'
+@description('Admin password for VMs.')
+@secure()
+@minLength(12)
+param adminPassword string
 
 @description('Starting port for SSH NAT rules.')
 param natStartPort int = 2201
@@ -61,16 +57,6 @@ resource rgLb 'Microsoft.Resources/resourceGroups@2023-07-01' = {
 resource rgVm 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: rgVmName
   location: location
-}
-
-// SSH Public Key (Azure-managed)
-module sshKey 'modules/ssh-key.bicep' = {
-  name: 'ssh-key-bastion'
-  scope: rgVm
-  params: {
-    location: location
-    sshKeyName: sshKeyName
-  }
 }
 
 // NSG for VM subnet (Public access)
@@ -118,7 +104,6 @@ module plb 'modules/public-lb.bicep' = {
     location: location
     lbName: 'plb-bastion'
     publicIpId: publicIp.outputs.publicIpId
-    vmCount: vmCount
     natStartPort: natStartPort
   }
   dependsOn: [
@@ -126,26 +111,25 @@ module plb 'modules/public-lb.bicep' = {
   ]
 }
 
-// Bastion VMs
-module bastionVms 'modules/bastion-vm.bicep' = [for i in range(0, vmCount): {
-  name: 'bastion-vm-${i + 1}'
+// Bastion VM (single VM)
+module bastionVm 'modules/bastion-vm.bicep' = {
+  name: 'bastion-vm-1'
   scope: rgVm
   params: {
     location: location
     vmNamePrefix: 'vm-bastion'
-    vmIndex: i + 1
+    vmIndex: 1
     vmSize: vmSize
     adminUsername: adminUsername
-    sshPublicKey: sshKey.outputs.publicKey
+    adminPassword: adminPassword
     subnetId: vmVnet.outputs.vmSubnetId
     backendPoolId: plb.outputs.backendPoolId
-    natRuleId: plb.outputs.natRuleIds[i]
+    natRuleId: plb.outputs.natRuleId
   }
   dependsOn: [
     plb
-    sshKey
   ]
-}]
+}
 
 // Outputs
 @description('Resource ID of the Load Balancer resource group.')
@@ -157,18 +141,12 @@ output rgVmId string = rgVm.id
 @description('Public IP address of the Load Balancer.')
 output publicIpAddress string = publicIp.outputs.publicIpAddress
 
-@description('SSH connection information for each VM.')
-output sshConnectionInfo array = [for i in range(0, vmCount): {
-  vmName: 'vm-bastion-${i + 1}'
-  sshCommand: 'ssh ${adminUsername}@${publicIp.outputs.publicIpAddress} -p ${natStartPort + i}'
-  natPort: natStartPort + i
-}]
-
-@description('Name of the SSH Key resource.')
-output sshKeyName string = sshKey.outputs.sshKeyName
-
-@description('Resource group of the SSH Key.')
-output sshKeyResourceGroup string = rgVmName
+@description('SSH connection information.')
+output sshConnectionInfo object = {
+  vmName: 'vm-bastion-1'
+  sshCommand: 'ssh ${adminUsername}@${publicIp.outputs.publicIpAddress} -p ${natStartPort}'
+  natPort: natStartPort
+}
 
 @description('Instructions for SSH connection.')
-output sshInstructions string = 'Connect via: ssh ${adminUsername}@${publicIp.outputs.publicIpAddress} -p 2201 (or 2202, 2203...)\nDownload private key from Azure Portal: ${rgVmName} → ${sshKeyName} → Download private key'
+output connectionInstructions string = 'Connect via: ssh ${adminUsername}@${publicIp.outputs.publicIpAddress} -p ${natStartPort}\nPassword authentication is enabled. Add SSH keys after deployment via Azure Portal if needed.'
