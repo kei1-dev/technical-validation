@@ -37,11 +37,8 @@ param maxCapacity int = 10
 @description('Managed Identity ID for certificate access')
 param managedIdentityId string
 
-@description('Backend FQDNs - dify-web')
-param backendFqdnWeb string
-
-@description('Backend FQDNs - dify-api')
-param backendFqdnApi string
+@description('Backend FQDN - nginx')
+param backendFqdnNginx string
 
 @description('Container Apps Environment Static IP (for internal VNet)')
 param containerAppsStaticIp string
@@ -58,13 +55,11 @@ var publicIpName = '${resourceNamePrefix}-appgateway-pip'
 var appGatewayName = '${resourceNamePrefix}-appgateway'
 var wafPolicyName = '${resourceNamePrefix}-waf-policy'
 
-// Backend pool names
-var backendPoolNameWeb = 'dify-web-pool'
-var backendPoolNameApi = 'dify-api-pool'
+// Backend pool name
+var backendPoolNameNginx = 'dify-nginx-pool'
 
-// Backend HTTP settings names
-var backendHttpSettingsNameWeb = 'dify-web-http-settings'
-var backendHttpSettingsNameApi = 'dify-api-http-settings'
+// Backend HTTP settings name
+var backendHttpSettingsNameNginx = 'dify-nginx-http-settings'
 
 // HTTP listener names
 var httpListenerNameHttp = 'http-listener'
@@ -74,9 +69,8 @@ var httpListenerNameHttps = 'https-listener'
 var frontendPortNameHttp = 'port-80'
 var frontendPortNameHttps = 'port-443'
 
-// Probe names
-var probeNameWeb = 'dify-web-probe'
-var probeNameApi = 'dify-api-probe'
+// Probe name
+var probeNameNginx = 'dify-nginx-probe'
 
 // ============================================================================
 // Public IP Address
@@ -188,21 +182,11 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
     ]
     backendAddressPools: [
       {
-        name: backendPoolNameWeb
+        name: backendPoolNameNginx
         properties: {
           backendAddresses: [
             {
-              fqdn: backendFqdnWeb
-            }
-          ]
-        }
-      }
-      {
-        name: backendPoolNameApi
-        properties: {
-          backendAddresses: [
-            {
-              fqdn: backendFqdnApi
+              fqdn: backendFqdnNginx
             }
           ]
         }
@@ -210,28 +194,19 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
     ]
     backendHttpSettingsCollection: [
       {
-        name: backendHttpSettingsNameWeb
+        name: backendHttpSettingsNameNginx
         properties: {
           port: 80
           protocol: 'Http'
           cookieBasedAffinity: 'Disabled'
           pickHostNameFromBackendAddress: true
-          requestTimeout: 60
-          probe: {
-            id: resourceId('Microsoft.Network/applicationGateways/probes', appGatewayName, probeNameWeb)
+          requestTimeout: 300
+          connectionDraining: {
+            enabled: true
+            drainTimeoutInSec: 60
           }
-        }
-      }
-      {
-        name: backendHttpSettingsNameApi
-        properties: {
-          port: 80
-          protocol: 'Http'
-          cookieBasedAffinity: 'Disabled'
-          pickHostNameFromBackendAddress: true
-          requestTimeout: 60
           probe: {
-            id: resourceId('Microsoft.Network/applicationGateways/probes', appGatewayName, probeNameApi)
+            id: resourceId('Microsoft.Network/applicationGateways/probes', appGatewayName, probeNameNginx)
           }
         }
       }
@@ -269,69 +244,25 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2023-05-01' =
     ]
     requestRoutingRules: [
       {
-        name: 'http-to-web-rule'
+        name: 'http-to-nginx-rule'
         properties: {
-          ruleType: 'PathBasedRouting'
+          ruleType: 'Basic'
           priority: 100
           httpListener: {
             id: resourceId('Microsoft.Network/applicationGateways/httpListeners', appGatewayName, httpListenerNameHttp)
           }
-          urlPathMap: {
-            id: resourceId('Microsoft.Network/applicationGateways/urlPathMaps', appGatewayName, 'urlPathMap')
+          backendAddressPool: {
+            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', appGatewayName, backendPoolNameNginx)
           }
-        }
-      }
-    ]
-    urlPathMaps: [
-      {
-        name: 'urlPathMap'
-        properties: {
-          defaultBackendAddressPool: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', appGatewayName, backendPoolNameWeb)
+          backendHttpSettings: {
+            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', appGatewayName, backendHttpSettingsNameNginx)
           }
-          defaultBackendHttpSettings: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', appGatewayName, backendHttpSettingsNameWeb)
-          }
-          pathRules: [
-            {
-              name: 'api-path-rule'
-              properties: {
-                paths: [
-                  '/api/*'
-                  '/v1/*'
-                ]
-                backendAddressPool: {
-                  id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', appGatewayName, backendPoolNameApi)
-                }
-                backendHttpSettings: {
-                  id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', appGatewayName, backendHttpSettingsNameApi)
-                }
-              }
-            }
-          ]
         }
       }
     ]
     probes: [
       {
-        name: probeNameWeb
-        properties: {
-          protocol: 'Http'
-          path: '/'
-          interval: 60
-          timeout: 60
-          unhealthyThreshold: 3
-          pickHostNameFromBackendHttpSettings: true
-          minServers: 0
-          match: {
-            statusCodes: [
-              '200-399'
-            ]
-          }
-        }
-      }
-      {
-        name: probeNameApi
+        name: probeNameNginx
         properties: {
           protocol: 'Http'
           path: '/health'

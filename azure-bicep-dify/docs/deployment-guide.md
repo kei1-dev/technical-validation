@@ -204,9 +204,153 @@ param difyWorkerImage = 'langgenius/dify-api:0.6.13'
 
 ## デプロイ手順
 
-### 方法1: 自動デプロイスクリプトの使用（推奨）
+### 方法1: Azure CLI直接デプロイ（推奨）
 
-最も簡単な方法です。全ての手順が自動化されています。
+最もシンプルで確実な方法です。以下の手順で実行してください。
+
+#### ステップ1: リソースグループの作成
+
+```bash
+# 開発環境
+az group create \
+  --name dify-dev-rg \
+  --location japaneast \
+  --tags Environment=Development Project=Dify
+```
+
+#### ステップ2: パラメータファイルの確認
+
+`bicep/parameters/dev.bicepparam`を編集し、以下を確認：
+
+```bicep
+// 必須：PostgreSQL管理者パスワード（強力なパスワードに変更）
+param postgresqlAdminPassword = 'CHANGE_ME_STRONG_PASSWORD_123!'
+
+// 必須：Key Vault管理者のObject ID
+param keyVaultAdminObjectId = ''  // az ad signed-in-user show --query id -o tsv で取得
+
+// 必須：nginx imageはカスタムイメージを使用（Difyルーティングに必須）
+// 初回デプロイ時は一時的に 'nginx:alpine' を使用し、後でカスタムイメージに更新
+param nginxImage = 'nginx:alpine'
+```
+
+**重要：**
+- 初回デプロイでは`nginxImage = 'nginx:alpine'`を使用します（ACR認証の問題回避）
+- **デプロイ後、必ずカスタムnginxイメージに更新してください**（ステップ5で実施）
+- カスタムイメージなしではDifyのルーティングが正しく動作しません
+
+#### ステップ3: メインインフラストラクチャのデプロイ
+
+```bash
+cd bicep
+
+az deployment group create \
+  --name "dify-dev-$(date +%Y%m%d-%H%M%S)" \
+  --resource-group dify-dev-rg \
+  --template-file main.bicep \
+  --parameters parameters/dev.bicepparam
+```
+
+デプロイには **10〜15分** かかります。完了すると以下が作成されます：
+- VNet、NSG、Private Endpoints
+- PostgreSQL、Redis、Storage、Key Vault
+- Container Apps（Web、API、Worker、nginx）
+- Application Gateway
+
+#### ステップ4: デプロイ結果の確認
+
+```bash
+# Application GatewayのパブリックIPとFQDNを取得
+az network public-ip show \
+  --resource-group dify-dev-rg \
+  --name dify-dev-appgateway-pip \
+  --query "{PublicIP:ipAddress, FQDN:dnsSettings.fqdn}" \
+  --output table
+
+# Container Appsの状態確認
+az containerapp list \
+  --resource-group dify-dev-rg \
+  --query "[].{Name:name, Status:properties.runningStatus}" \
+  --output table
+
+# Application Gatewayバックエンドヘルス確認
+az network application-gateway show-backend-health \
+  --resource-group dify-dev-rg \
+  --name dify-dev-appgateway \
+  --query "backendAddressPools[].backendHttpSettingsCollection[].servers[].{Address:address, Health:health}" \
+  --output table
+```
+
+#### ステップ5（必須）: カスタムnginxイメージへの更新
+
+**重要：このステップは必須です。** カスタムnginxイメージにはDifyのルーティング設定とContainer Apps内部通信に必要なHostヘッダー設定が含まれています。
+
+```bash
+# ACR名を取得
+ACR_NAME=$(az acr list -g dify-dev-rg --query "[0].name" -o tsv)
+echo "ACR Name: $ACR_NAME"
+
+# nginxイメージをビルドしてACRにプッシュ
+bash scripts/build-and-push-nginx.sh \
+  --resource-group dify-dev-rg \
+  --acr-name $ACR_NAME
+
+# Container Apps Environment IDを取得（internal FQDNに必要）
+ENV_ID=$(az containerapp env show \
+  --name dify-dev-containerapp-env \
+  --resource-group dify-dev-rg \
+  --query "properties.defaultDomain" -o tsv | cut -d'.' -f1)
+
+echo "Environment ID: $ENV_ID"
+
+# nginx Container Appを更新（ACR認証情報とinternal FQDN付き）
+ACR_SERVER="${ACR_NAME}.azurecr.io"
+ACR_USER=$(az acr credential show --name $ACR_NAME --query username -o tsv)
+ACR_PASS=$(az acr credential show --name $ACR_NAME --query "passwords[0].value" -o tsv)
+
+az containerapp update \
+  --name dify-dev-nginx \
+  --resource-group dify-dev-rg \
+  --image "${ACR_SERVER}/dify-nginx:latest" \
+  --set-env-vars \
+    DIFY_WEB_HOST=dify-dev-web.internal.${ENV_ID}.japaneast.azurecontainerapps.io \
+    DIFY_WEB_PORT=80 \
+    DIFY_API_HOST=dify-dev-api.internal.${ENV_ID}.japaneast.azurecontainerapps.io \
+    DIFY_API_PORT=80 \
+  --registry-server $ACR_SERVER \
+  --registry-username $ACR_USER \
+  --registry-password $ACR_PASS
+
+echo "✓ カスタムnginxイメージの更新が完了しました"
+```
+
+**カスタムnginxイメージの重要な設定：**
+- `docker/nginx/default.conf.template`: Difyのパスルーティング設定（/api, /console/api, /v1など）
+- `docker/nginx/proxy_params`: Container Apps内部通信用のプロキシ設定
+- **Hostヘッダーの明示的設定**: 各location blockで`proxy_set_header Host ${DIFY_WEB_HOST};`を設定することで、Container Appsのルーティングレイヤーが正しくリクエストを転送できます
+
+**動作確認：**
+```bash
+# Application GatewayのFQDNを取得
+APP_FQDN=$(az network public-ip show \
+  --resource-group dify-dev-rg \
+  --name dify-dev-appgateway-pip \
+  --query dnsSettings.fqdn -o tsv)
+
+echo "Dify URL: http://$APP_FQDN"
+
+# ヘルスチェック
+curl -s http://$APP_FQDN/health
+# 期待される出力: healthy
+
+# Dify Webインターフェースにアクセス
+curl -s http://$APP_FQDN/ | head -20
+# 期待される出力: <!DOCTYPE html><html... Dify ...
+```
+
+### 方法2: 自動デプロイスクリプトの使用
+
+全ての手順が自動化されていますが、ACR認証の問題が発生する可能性があります。
 
 #### 開発環境のデプロイ
 
@@ -217,27 +361,9 @@ bash scripts/deploy.sh \
   --location japaneast
 ```
 
-#### 本番環境のデプロイ
+**注意：** このスクリプトはRole Assignment権限が必要です（所有者またはユーザーアクセス管理者ロール）。権限がない場合は方法1を使用してください。
 
-```bash
-bash scripts/deploy.sh \
-  --environment prod \
-  --resource-group dify-prod-rg \
-  --location japaneast
-```
-
-#### What-If分析（変更内容の事前確認）
-
-```bash
-bash scripts/deploy.sh \
-  --environment dev \
-  --resource-group dify-dev-rg \
-  --what-if
-```
-
-デプロイには **20〜30分** かかります。
-
-### 方法2: 手動デプロイ
+### 方法3: 手動デプロイ（詳細制御）
 
 より細かい制御が必要な場合は、手動でデプロイできます。
 
@@ -716,29 +842,168 @@ az containerapp exec \
 
 #### 4. Application Gatewayヘルスプローブ失敗
 
-**問題**: バックエンドが`Unhealthy`
+**問題**: バックエンドが`Unhealthy`、エラー: "Received invalid status code: 404"
+
+**原因**: ヘルスプローブのパスが正しくない、またはnginxが応答していない
 
 **解決方法**:
 
 ```bash
-# ヘルスプローブの詳細
+# ヘルスプローブの詳細を確認
 az network application-gateway show-backend-health \
   --resource-group dify-dev-rg \
   --name dify-dev-appgateway
 
-# Container Appsのingressエンドポイント確認
+# nginx Container Appの状態確認
 az containerapp show \
-  --name dify-dev-web \
+  --name dify-dev-nginx \
   --resource-group dify-dev-rg \
-  --query "properties.configuration.ingress.fqdn"
+  --query "{Status:properties.runningStatus, LatestRevision:properties.latestRevisionName}"
+
+# ヘルスプローブ設定を確認
+az network application-gateway probe list \
+  --resource-group dify-dev-rg \
+  --gateway-name dify-dev-appgateway \
+  --query "[].{Name:name, Path:path, Interval:interval, Timeout:timeout}" \
+  --output table
 ```
 
 チェックポイント：
-- Container Appsが起動している
-- ヘルスプローブのパスが正しい（`/api/health`）
-- タイムアウト設定が適切
+- nginx Container Appsが`Running`状態である
+- **ヘルスプローブのパスが`/health`に設定されている**（`/`ではない）
+- nginxがカスタムイメージを使用している（`nginx:alpine`ではHealthエンドポイントが存在しない）
+- タイムアウト設定が適切（60秒推奨）
 
-#### 5. SSL証明書エラー
+**ヘルスプローブパスの修正が必要な場合：**
+`bicep/modules/applicationGateway.bicep`の268行目を確認：
+```bicep
+path: '/health'  # '/' ではなく '/health' が正しい
+```
+
+#### 5. 404エラー - "Azure Container App - Unavailable"
+
+**問題**: Application Gatewayから404エラーが返される。エラーメッセージ: "This Container App is stopped or does not exist."
+
+**原因**:
+1. **最も一般的**: nginxのHostヘッダー設定が不正（Container Appsルーティングレイヤーがリクエストを正しくルーティングできない）
+2. カスタムnginxイメージを使用していない（`nginx:alpine`ではDifyルーティングが動作しない）
+3. nginx環境変数が正しく設定されていない
+
+**診断方法**:
+
+```bash
+# nginx Container Appの環境変数を確認
+az containerapp show \
+  --name dify-dev-nginx \
+  --resource-group dify-dev-rg \
+  --query "properties.template.containers[0].env" \
+  --output json
+
+# 期待される値:
+# DIFY_WEB_HOST: "dify-dev-web.internal.<ENV_ID>.japaneast.azurecontainerapps.io"
+# DIFY_API_HOST: "dify-dev-api.internal.<ENV_ID>.japaneast.azurecontainerapps.io"
+
+# バックエンドContainer Appsの状態確認
+az containerapp list \
+  --resource-group dify-dev-rg \
+  --query "[?contains(name, 'dify-dev')].{Name:name, Status:properties.runningStatus}" \
+  --output table
+
+# nginxログでエラーを確認
+az containerapp logs show \
+  --name dify-dev-nginx \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 20
+```
+
+**解決方法**:
+
+**重要:** この問題の根本原因は、**Container Apps内部通信でのHostヘッダーの設定**です。
+
+1. **nginx設定ファイルを確認** (`docker/nginx/default.conf.template`):
+```nginx
+# 各location blockでHostヘッダーを明示的に設定する必要があります
+location / {
+    proxy_pass http://web;
+    proxy_set_header Host ${DIFY_WEB_HOST};  # この行が重要！
+    include /etc/nginx/proxy_params;
+}
+```
+
+2. **proxy_paramsファイルを確認** (`docker/nginx/proxy_params`):
+```nginx
+# Hostヘッダーの設定を含めてはいけません
+# proxy_set_header Host $proxy_host;  ← この行があると問題が発生
+proxy_http_version 1.1;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+...
+```
+
+3. **カスタムnginxイメージを再ビルドして更新**:
+```bash
+# ACR名とEnvironment IDを取得
+ACR_NAME=$(az acr list -g dify-dev-rg --query "[0].name" -o tsv)
+ENV_ID=$(az containerapp env show \
+  --name dify-dev-containerapp-env \
+  --resource-group dify-dev-rg \
+  --query "properties.defaultDomain" -o tsv | cut -d'.' -f1)
+
+# nginxイメージをビルドしてプッシュ
+bash scripts/build-and-push-nginx.sh \
+  --resource-group dify-dev-rg \
+  --acr-name $ACR_NAME
+
+# nginx Container Appを更新（正しい環境変数で）
+ACR_SERVER="${ACR_NAME}.azurecr.io"
+ACR_USER=$(az acr credential show --name $ACR_NAME --query username -o tsv)
+ACR_PASS=$(az acr credential show --name $ACR_NAME --query "passwords[0].value" -o tsv)
+
+az containerapp update \
+  --name dify-dev-nginx \
+  --resource-group dify-dev-rg \
+  --image "${ACR_SERVER}/dify-nginx:latest" \
+  --set-env-vars \
+    DIFY_WEB_HOST=dify-dev-web.internal.${ENV_ID}.japaneast.azurecontainerapps.io \
+    DIFY_WEB_PORT=80 \
+    DIFY_API_HOST=dify-dev-api.internal.${ENV_ID}.japaneast.azurecontainerapps.io \
+    DIFY_API_PORT=80 \
+  --registry-server $ACR_SERVER \
+  --registry-username $ACR_USER \
+  --registry-password $ACR_PASS
+```
+
+4. **動作確認**:
+```bash
+APP_FQDN=$(az network public-ip show \
+  --resource-group dify-dev-rg \
+  --name dify-dev-appgateway-pip \
+  --query dnsSettings.fqdn -o tsv)
+
+# ヘルスチェック（nginxレベル）
+curl -s http://$APP_FQDN/health
+# 期待される出力: healthy
+
+# Dify Webアプリケーション
+curl -s http://$APP_FQDN/ | head -20
+# 期待される出力: <!DOCTYPE html><html... Dify ...
+```
+
+**技術的な説明:**
+
+Container Appsの内部ルーティングは、**Hostヘッダーを使用してどのContainer Appにリクエストを転送するか判断**します。
+
+❌ **間違った設定:**
+- `proxy_set_header Host $proxy_host;` → `dify-dev-web:80`（ポート番号付き）
+- `proxy_set_header Host $host;` → Application GatewayのFQDN
+
+✅ **正しい設定:**
+- `proxy_set_header Host ${DIFY_WEB_HOST};` → `dify-dev-web.internal.<ENV_ID>.japaneast.azurecontainerapps.io`
+
+この設定により、Container Appsプラットフォームは正しいContainer Appにリクエストをルーティングできます。
+
+#### 6. SSL証明書エラー
 
 **問題**: HTTPS接続でエラー
 
@@ -763,7 +1028,7 @@ az network application-gateway ssl-cert show \
 - Managed IdentityがKey Vaultへのアクセス権を持っている
 - 証明書にプライベートキーが含まれている（PFX形式）
 
-#### 6. コスト超過
+#### 7. コスト超過
 
 **問題**: 予想以上のコストが発生
 

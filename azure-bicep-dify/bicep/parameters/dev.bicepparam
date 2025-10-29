@@ -35,6 +35,9 @@ param privateEndpointSubnetPrefix = '10.0.2.0/24'
 param postgresqlAdminUsername = 'difydbadmin'
 param postgresqlAdminPassword = 'DifyDev2025!Secure#Pass'
 
+// Dify Secret Key for encryption (change this to a random 64-character hex string)
+param difySecretKey = '6b7fd0d609913c4b2d4e8c5f1a3b7e9d2c5a8f4e1b3d6c9a2e5b8d1f4a7c0e3b'
+
 // Dev environment uses Burstable tier for cost optimization
 param postgresqlSkuName = 'Standard_B1ms'
 param postgresqlStorageSizeGB = 32
@@ -82,6 +85,7 @@ param sslCertificateSecretId = ''
 param difyWebImage = 'langgenius/dify-web:latest'
 param difyApiImage = 'langgenius/dify-api:latest'
 param difyWorkerImage = 'langgenius/dify-api:latest'
+param nginxImage = 'difyacrdevenqofxlmd5ei6.azurecr.io/dify-nginx:latest'  // Custom nginx image with Dify routing
 
 // Dev environment: min=1 to avoid 502 errors (at least 1 replica always running)
 param containerAppMinReplicas = 1

@@ -45,6 +45,9 @@ param enableIngress bool = true
 @description('Ingress external mode (false = internal only)')
 param ingressExternal bool = false
 
+@description('Allow insecure HTTP traffic (enable HTTP in addition to HTTPS)')
+param allowInsecure bool = false
+
 @description('Environment variables')
 param environmentVariables array = []
 
@@ -77,7 +80,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         external: ingressExternal
         targetPort: containerPort
         transport: 'http'
-        allowInsecure: true
+        allowInsecure: allowInsecure
         traffic: [
           {
             latestRevision: true

@@ -93,11 +93,19 @@ param difyApiImage string = 'langgenius/dify-api:latest'
 @description('Dify Worker container image')
 param difyWorkerImage string = 'langgenius/dify-api:latest'
 
+@description('nginx container image')
+param nginxImage string = 'nginx:alpine'
+
 @description('Min replicas for Container Apps')
 param containerAppMinReplicas int = environment == 'prod' ? 2 : 0
 
 @description('Max replicas for Container Apps')
 param containerAppMaxReplicas int = environment == 'prod' ? 10 : 5
+
+// Dify Configuration Parameters
+@description('Dify secret key for encryption')
+@secure()
+param difySecretKey string
 
 // ============================================================================
 // Module Deployments
@@ -143,7 +151,19 @@ module keyvault 'modules/keyvault.bicep' = {
   }
 }
 
-// 4. Data Layer - PostgreSQL
+// 4. Azure Container Registry
+module acr 'modules/acr.bicep' = {
+  name: 'acr-deployment'
+  params: {
+    environment: environment
+    location: location
+    tags: tags
+    skuName: 'Basic'
+    adminUserEnabled: true
+  }
+}
+
+// 5. Data Layer - PostgreSQL
 module postgresql 'modules/postgresql.bicep' = {
   name: 'postgresql-deployment'
   params: {
@@ -253,6 +273,20 @@ module containerAppsDnsRecord 'modules/privateDnsRecord.bicep' = {
   ]
 }
 
+// Wildcard DNS A Record for Internal Container Apps (enables name resolution for internal ingress apps)
+module containerAppsInternalDnsRecord 'modules/privateDnsRecord.bicep' = {
+  name: 'containerAppsInternalDnsRecord-deployment'
+  params: {
+    privateDnsZoneName: containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain
+    recordName: '*.internal'
+    ipAddress: containerAppsEnv.outputs.containerAppsEnvironmentStaticIp
+    tags: tags
+  }
+  dependsOn: [
+    privateDnsZoneContainerApps
+  ]
+}
+
 // 8. Private Endpoints
 module privateEndpointPostgres 'modules/privateEndpoint.bicep' = {
   name: 'privateEndpointPostgres-deployment'
@@ -354,15 +388,24 @@ module containerAppWeb 'modules/containerApp.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     enableIngress: true
-    ingressExternal: true
+    ingressExternal: false
+    allowInsecure: true
     environmentVariables: [
       {
         name: 'CONSOLE_API_URL'
-        value: 'https://dify-${environment}-api.${containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain}'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
       }
       {
         name: 'APP_API_URL'
-        value: 'https://dify-${environment}-api.${containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain}'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'SENTRY_DSN'
+        value: ''
+      }
+      {
+        name: 'NEXT_PUBLIC_SENTRY_DSN'
+        value: ''
       }
     ]
     scaleRules: [
@@ -398,7 +441,26 @@ module containerAppApi 'modules/containerApp.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     enableIngress: true
-    ingressExternal: true
+    ingressExternal: false
+    allowInsecure: true
+    secrets: [
+      {
+        name: 'db-password'
+        value: postgresqlAdminPassword
+      }
+      {
+        name: 'redis-password'
+        value: redis.outputs.redisPrimaryKey
+      }
+      {
+        name: 'storage-key'
+        value: storage.outputs.storageAccountPrimaryKey
+      }
+      {
+        name: 'secret-key'
+        value: difySecretKey
+      }
+    ]
     environmentVariables: [
       {
         name: 'MODE'
@@ -421,6 +483,10 @@ module containerAppApi 'modules/containerApp.bicep' = {
         value: postgresql.outputs.postgresqlDatabaseName
       }
       {
+        name: 'DB_PASSWORD'
+        secretRef: 'db-password'
+      }
+      {
         name: 'REDIS_HOST'
         value: redis.outputs.redisHostName
       }
@@ -433,6 +499,10 @@ module containerAppApi 'modules/containerApp.bicep' = {
         value: 'true'
       }
       {
+        name: 'REDIS_PASSWORD'
+        secretRef: 'redis-password'
+      }
+      {
         name: 'STORAGE_TYPE'
         value: 'azure-blob'
       }
@@ -441,8 +511,36 @@ module containerAppApi 'modules/containerApp.bicep' = {
         value: storage.outputs.storageAccountName
       }
       {
+        name: 'AZURE_BLOB_ACCOUNT_KEY'
+        secretRef: 'storage-key'
+      }
+      {
         name: 'AZURE_BLOB_CONTAINER_NAME'
         value: 'dify-app-storage'
+      }
+      {
+        name: 'SECRET_KEY'
+        secretRef: 'secret-key'
+      }
+      {
+        name: 'LOG_LEVEL'
+        value: environment == 'prod' ? 'INFO' : 'DEBUG'
+      }
+      {
+        name: 'CONSOLE_WEB_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'CONSOLE_API_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'SERVICE_API_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'APP_WEB_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
       }
     ]
     scaleRules: [
@@ -484,6 +582,24 @@ module containerAppWorker 'modules/containerApp.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     enableIngress: false
+    secrets: [
+      {
+        name: 'db-password'
+        value: postgresqlAdminPassword
+      }
+      {
+        name: 'redis-password'
+        value: redis.outputs.redisPrimaryKey
+      }
+      {
+        name: 'storage-key'
+        value: storage.outputs.storageAccountPrimaryKey
+      }
+      {
+        name: 'secret-key'
+        value: difySecretKey
+      }
+    ]
     environmentVariables: [
       {
         name: 'MODE'
@@ -506,6 +622,10 @@ module containerAppWorker 'modules/containerApp.bicep' = {
         value: postgresql.outputs.postgresqlDatabaseName
       }
       {
+        name: 'DB_PASSWORD'
+        secretRef: 'db-password'
+      }
+      {
         name: 'REDIS_HOST'
         value: redis.outputs.redisHostName
       }
@@ -518,6 +638,10 @@ module containerAppWorker 'modules/containerApp.bicep' = {
         value: 'true'
       }
       {
+        name: 'REDIS_PASSWORD'
+        secretRef: 'redis-password'
+      }
+      {
         name: 'STORAGE_TYPE'
         value: 'azure-blob'
       }
@@ -526,8 +650,36 @@ module containerAppWorker 'modules/containerApp.bicep' = {
         value: storage.outputs.storageAccountName
       }
       {
+        name: 'AZURE_BLOB_ACCOUNT_KEY'
+        secretRef: 'storage-key'
+      }
+      {
         name: 'AZURE_BLOB_CONTAINER_NAME'
         value: 'dify-app-storage'
+      }
+      {
+        name: 'SECRET_KEY'
+        secretRef: 'secret-key'
+      }
+      {
+        name: 'LOG_LEVEL'
+        value: environment == 'prod' ? 'INFO' : 'DEBUG'
+      }
+      {
+        name: 'CONSOLE_WEB_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'CONSOLE_API_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'SERVICE_API_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'APP_WEB_URL'
+        value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
       }
     ]
     scaleRules: []
@@ -544,7 +696,28 @@ module containerAppWorker 'modules/containerApp.bicep' = {
   ]
 }
 
-// 13. Application Gateway
+// 13. Container Apps - nginx
+module containerAppNginx 'modules/nginxContainerApp.bicep' = {
+  name: 'containerAppNginx-deployment'
+  params: {
+    environment: environment
+    location: location
+    tags: tags
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
+    managedIdentityId: keyvault.outputs.containerAppsIdentityId
+    nginxImage: nginxImage
+    difyWebAppName: containerAppWeb.outputs.containerAppName
+    difyApiAppName: containerAppApi.outputs.containerAppName
+  }
+  dependsOn: [
+    containerAppsEnv
+    keyvault
+    containerAppWeb
+    containerAppApi
+  ]
+}
+
+// 14. Application Gateway
 module applicationGateway 'modules/applicationGateway.bicep' = {
   name: 'applicationGateway-deployment'
   params: {
@@ -557,16 +730,14 @@ module applicationGateway 'modules/applicationGateway.bicep' = {
     minCapacity: environment == 'prod' ? 2 : 1
     maxCapacity: environment == 'prod' ? 10 : 5
     managedIdentityId: keyvault.outputs.appGatewayIdentityId
-    backendFqdnWeb: containerAppWeb.outputs.containerAppFqdn
-    backendFqdnApi: containerAppApi.outputs.containerAppFqdn
+    backendFqdnNginx: containerAppNginx.outputs.containerAppFqdn
     containerAppsStaticIp: containerAppsEnv.outputs.containerAppsEnvironmentStaticIp
     sslCertificateSecretId: sslCertificateSecretId
   }
   dependsOn: [
     network
     keyvault
-    containerAppWeb
-    containerAppApi
+    containerAppNginx
   ]
 }
 
@@ -586,6 +757,9 @@ output difyWebFqdn string = containerAppWeb.outputs.containerAppFqdn
 @description('Dify API App FQDN')
 output difyApiFqdn string = containerAppApi.outputs.containerAppFqdn
 
+@description('nginx App FQDN')
+output nginxFqdn string = containerAppNginx.outputs.containerAppFqdn
+
 @description('PostgreSQL Server FQDN')
 output postgresqlServerFqdn string = postgresql.outputs.postgresqlServerFqdn
 
@@ -603,3 +777,9 @@ output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspa
 
 @description('Application Insights Name')
 output applicationInsightsName string = monitoring.outputs.applicationInsightsName
+
+@description('Azure Container Registry Name')
+output acrName string = acr.outputs.acrName
+
+@description('Azure Container Registry Login Server')
+output acrLoginServer string = acr.outputs.acrLoginServer

@@ -1,0 +1,69 @@
+# Upstream servers
+upstream web {
+    server ${DIFY_WEB_HOST}:${DIFY_WEB_PORT};
+}
+
+upstream api {
+    server ${DIFY_API_HOST}:${DIFY_API_PORT};
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # Health check endpoint for Application Gateway
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Console API - highest priority
+    location /console/api {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # API endpoints
+    location /api {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # V1 API endpoints
+    location /v1 {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Files endpoint
+    location /files {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # MCP endpoint
+    location /mcp {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Explore interface
+    location /explore {
+        proxy_pass http://web;
+        proxy_set_header Host ${DIFY_WEB_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Default - Web UI
+    location / {
+        proxy_pass http://web;
+        proxy_set_header Host ${DIFY_WEB_HOST};
+        include /etc/nginx/proxy_params;
+    }
+}
