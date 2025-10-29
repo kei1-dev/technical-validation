@@ -257,6 +257,21 @@ az deployment group create \
 - Container Apps（Web、API、Worker、nginx）
 - Application Gateway
 
+**✅ 2025年1月更新：自動設定される項目**
+
+最新のBicepテンプレートでは、以下が**自動的に**設定されるため、デプロイ後の手動設定は不要です：
+
+1. **データベースマイグレーション**
+   - `MIGRATION_ENABLED=true`がAPIとWorkerコンテナに設定済み
+   - コンテナ起動時に自動的にデータベーススキーマが初期化されます
+   - 手動でのデータベース初期化は不要
+
+2. **Azure Blob Storage接続URL**
+   - `AZURE_BLOB_ACCOUNT_URL`が自動生成されて設定済み
+   - 正しいStorage Account URLが自動的に設定されます
+
+これらの設定により、デプロイ直後から500エラーなしでDifyが利用可能になります。
+
 #### ステップ4: デプロイ結果の確認
 
 ```bash
@@ -491,6 +506,59 @@ az deployment group show \
 ## デプロイ後の設定
 
 デプロイが完了したら、以下の設定を行います。
+
+### 0. 自動設定される項目（2025年1月更新）
+
+最新のBicepテンプレートでは、以下の設定が**自動的に**適用されます：
+
+#### ✅ 自動化された設定
+
+1. **データベースマイグレーション**
+   - 環境変数: `MIGRATION_ENABLED=true`
+   - APIコンテナとWorkerコンテナの起動時に自動実行
+   - `dify_setups`、`accounts`、`apps`などの全テーブルが自動作成
+   - **手動でのデータベース初期化は不要**
+
+2. **Azure Blob Storage接続URL**
+   - 環境変数: `AZURE_BLOB_ACCOUNT_URL=https://{storage-account-name}.blob.core.windows.net`
+   - デプロイ時に自動生成
+   - APIコンテナとWorkerコンテナに自動設定
+
+#### 📋 デプロイ直後の確認
+
+デプロイが成功したら、以下のコマンドで自動設定を確認できます：
+
+```bash
+# データベースマイグレーションの確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 50 | grep -E "(migration|Database migration)"
+
+# 期待される出力:
+# "Running migrations"
+# "Database migration successful!"
+
+# 環境変数の確認
+az containerapp show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --query "properties.template.containers[0].env[?name=='MIGRATION_ENABLED' || name=='AZURE_BLOB_ACCOUNT_URL'].{name:name, value:value}" \
+  --output table
+
+# 期待される出力:
+# Name                      Value
+# ------------------------  ----------------------------------------------------
+# MIGRATION_ENABLED         true
+# AZURE_BLOB_ACCOUNT_URL    https://difydevstenqofxlmd5ei6.blob.core.windows.net
+```
+
+#### ⚠️ 重要な注意事項
+
+もし古いバージョンのBicepテンプレートを使用している場合（2025年1月以前）、これらの環境変数が設定されていない可能性があります。その場合は[トラブルシューティング](#トラブルシューティング)セクションの「500 Internal Server Error」を参照してください。
+
+---
 
 ### 1. シークレットの設定
 
@@ -732,6 +800,88 @@ curl http://$APP_FQDN/api/health
 1. `http://$APP_FQDN` → Difyホームページが表示される
 2. ログインページが正常に表示される
 3. 管理コンソール（`/console`）にアクセスできる
+
+#### データベースマイグレーションの確認（重要）
+
+デプロイ直後に、データベースマイグレーションが正常に完了したことを確認します：
+
+```bash
+# APIコンテナのログを確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 100 | grep -E "(migration|Database|dify_setup)"
+
+# 期待される出力:
+# "Running migrations"
+# "Preparing database migration..."
+# "Starting database migration."
+# "INFO  [alembic.runtime.migration] Context impl PostgresqlImpl."
+# "INFO  [alembic.runtime.migration] Will assume transactional DDL."
+# "Database migration successful!"
+```
+
+**マイグレーション失敗の兆候：**
+- エラーメッセージ: `relation "dify_setups" does not exist`
+- エラーメッセージ: `ProgrammingError: (psycopg2.errors.UndefinedTable)`
+
+これらのエラーが表示される場合は、[トラブルシューティング](#8-500-internal-server-error---データベース未初期化)を参照してください。
+
+#### APIエンドポイントの確認
+
+セットアップAPIが正しく動作していることを確認：
+
+```bash
+# セットアップエンドポイントのテスト
+curl -i http://$APP_FQDN/console/api/setup
+
+# 期待されるレスポンス:
+# HTTP/1.1 200 OK
+# Content-Type: application/json
+# {"step":"not_started"}
+
+# または、初期設定済みの場合:
+# {"step":"finished"}
+```
+
+**500エラーが返される場合：**
+- データベースマイグレーションが失敗している可能性
+- 詳細は[トラブルシューティング](#8-500-internal-server-error---データベース未初期化)を参照
+
+#### Azure Blob Storage接続の確認
+
+Storage設定が正しいことを確認：
+
+```bash
+# 環境変数の確認
+az containerapp show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --query "properties.template.containers[0].env[?contains(name, 'AZURE_BLOB')].{name:name, value:value}" \
+  --output table
+
+# 期待される出力:
+# Name                       Value
+# -------------------------  ----------------------------------------------------
+# AZURE_BLOB_ACCOUNT_NAME    difydevstenqofxlmd5ei6
+# AZURE_BLOB_ACCOUNT_KEY     (secretRef: storage-key)
+# AZURE_BLOB_CONTAINER_NAME  dify-app-storage
+# AZURE_BLOB_ACCOUNT_URL     https://difydevstenqofxlmd5ei6.blob.core.windows.net
+
+# APIログでストレージエラーがないことを確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 50 | grep -i "storage\|blob\|Invalid URL"
+```
+
+**Storageエラーの兆候：**
+- エラーメッセージ: `ValueError: Invalid URL: https://`
+- エラーメッセージ: `BlobServiceClient`関連のエラー
+
+これらのエラーが表示される場合は、[トラブルシューティング](#9-azure-blob-storage接続エラー)を参照してください。
 
 ### 3. モニタリングの検証
 
@@ -1054,6 +1204,198 @@ az containerapp show \
 - Application Gatewayのインスタンス数を調整
 - 未使用時はリソースを停止
 
+#### 8. 500 Internal Server Error - データベース未初期化
+
+**問題**: `/console/api/setup`エンドポイントにアクセスすると500エラーが返される
+
+**症状**:
+```
+HTTP/1.1 500 Internal Server Error
+```
+
+**原因**: データベースマイグレーションが実行されておらず、`dify_setups`テーブルが存在しない
+
+**診断方法**:
+
+```bash
+# APIログでエラーを確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 100
+
+# 以下のようなエラーが表示される場合、データベース未初期化:
+# sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedTable)
+# relation "dify_setups" does not exist
+```
+
+**解決方法**:
+
+**ステップ1: 環境変数を確認**
+
+```bash
+# MIGRATION_ENABLED環境変数が設定されているか確認
+az containerapp show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --query "properties.template.containers[0].env[?name=='MIGRATION_ENABLED'].{name:name, value:value}" \
+  --output table
+
+# 出力が空の場合、環境変数が設定されていない
+```
+
+**ステップ2: 環境変数を追加**
+
+```bash
+# APIコンテナに環境変数を追加
+az containerapp update \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --set-env-vars MIGRATION_ENABLED=true
+
+# Workerコンテナにも追加
+az containerapp update \
+  --name dify-dev-worker \
+  --resource-group dify-dev-rg \
+  --set-env-vars MIGRATION_ENABLED=true
+```
+
+**ステップ3: マイグレーション実行を確認**
+
+```bash
+# コンテナが再起動するまで待機（約30秒）
+sleep 30
+
+# マイグレーション成功を確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 50 | grep -E "(migration|Database migration)"
+
+# 期待される出力:
+# "Running migrations"
+# "Database migration successful!"
+```
+
+**ステップ4: 動作確認**
+
+```bash
+# Application Gateway FQDNを取得
+APP_FQDN=$(az network public-ip show \
+  --resource-group dify-dev-rg \
+  --name dify-dev-appgateway-pip \
+  --query dnsSettings.fqdn -o tsv)
+
+# APIエンドポイントをテスト
+curl -i http://$APP_FQDN/console/api/setup
+
+# 期待される出力:
+# HTTP/1.1 200 OK
+# {"step":"not_started"}
+```
+
+**予防策**:
+
+最新のBicepテンプレート（2025年1月以降）を使用してください。`bicep/main.bicep`に`MIGRATION_ENABLED=true`が含まれています。
+
+---
+
+#### 9. Azure Blob Storage接続エラー
+
+**問題**: APIコンテナでStorage関連のエラーが発生する
+
+**症状**:
+```
+ValueError: Invalid URL: https://
+Setup account failed
+```
+
+**原因**: `AZURE_BLOB_ACCOUNT_URL`環境変数が設定されていない、または空の値になっている
+
+**診断方法**:
+
+```bash
+# APIログでStorageエラーを確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 100 | grep -i "storage\|blob\|Invalid URL"
+
+# 以下のようなエラーが表示される場合、Storage設定が不正:
+# ValueError: Invalid URL: https://
+# File "/app/api/extensions/storage/azure_blob_storage.py", line 104, in _sync_client
+```
+
+**解決方法**:
+
+**ステップ1: Storage Account名を取得**
+
+```bash
+# Storage Account名を取得
+STORAGE_ACCOUNT_NAME=$(az storage account list \
+  --resource-group dify-dev-rg \
+  --query "[0].name" -o tsv)
+
+echo "Storage Account Name: $STORAGE_ACCOUNT_NAME"
+```
+
+**ステップ2: 環境変数を追加**
+
+```bash
+# APIコンテナに環境変数を追加
+az containerapp update \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --set-env-vars \
+    AZURE_BLOB_ACCOUNT_URL=https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net
+
+# Workerコンテナにも追加
+az containerapp update \
+  --name dify-dev-worker \
+  --resource-group dify-dev-rg \
+  --set-env-vars \
+    AZURE_BLOB_ACCOUNT_URL=https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net
+```
+
+**ステップ3: 環境変数を確認**
+
+```bash
+# 環境変数が正しく設定されたことを確認
+az containerapp show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --query "properties.template.containers[0].env[?name=='AZURE_BLOB_ACCOUNT_URL'].{name:name, value:value}" \
+  --output table
+
+# 期待される出力:
+# Name                    Value
+# ----------------------  ----------------------------------------------------
+# AZURE_BLOB_ACCOUNT_URL  https://difydevstenqofxlmd5ei6.blob.core.windows.net
+```
+
+**ステップ4: ログでエラーが解消されたことを確認**
+
+```bash
+# コンテナが再起動するまで待機（約30秒）
+sleep 30
+
+# Storageエラーがないことを確認
+az containerapp logs show \
+  --name dify-dev-api \
+  --resource-group dify-dev-rg \
+  --type console \
+  --tail 50 | grep -i "Invalid URL"
+
+# 出力が空であれば正常
+```
+
+**予防策**:
+
+最新のBicepテンプレート（2025年1月以降）を使用してください。`bicep/main.bicep`に`AZURE_BLOB_ACCOUNT_URL`が自動生成されるように設定されています。
+
 ---
 
 ## 参考資料
@@ -1078,4 +1420,11 @@ az containerapp show \
 
 ---
 
-**最終更新**: 2025年1月
+**最終更新**: 2025年1月（v2.0 - データベースマイグレーション自動化対応）
+
+**変更履歴**:
+- **2025年1月 v2.0**: データベースマイグレーションとAzure Blob Storage URLの自動設定に対応
+  - `MIGRATION_ENABLED=true`の自動設定
+  - `AZURE_BLOB_ACCOUNT_URL`の自動生成
+  - 500エラーのトラブルシューティング追加
+  - デプロイ後の検証手順を拡張

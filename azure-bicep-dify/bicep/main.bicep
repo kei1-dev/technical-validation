@@ -542,6 +542,14 @@ module containerAppApi 'modules/containerApp.bicep' = {
         name: 'APP_WEB_URL'
         value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
       }
+      {
+        name: 'MIGRATION_ENABLED'
+        value: 'true'
+      }
+      {
+        name: 'AZURE_BLOB_ACCOUNT_URL'
+        value: 'https://${storage.outputs.storageAccountName}.blob.${az.environment().suffixes.storage}'
+      }
     ]
     scaleRules: [
       {
@@ -680,6 +688,14 @@ module containerAppWorker 'modules/containerApp.bicep' = {
       {
         name: 'APP_WEB_URL'
         value: 'http://dify-${environment}-${uniqueString(resourceGroup().id)}.${location}.cloudapp.azure.com'
+      }
+      {
+        name: 'MIGRATION_ENABLED'
+        value: 'true'
+      }
+      {
+        name: 'AZURE_BLOB_ACCOUNT_URL'
+        value: 'https://${storage.outputs.storageAccountName}.blob.${az.environment().suffixes.storage}'
       }
     ]
     scaleRules: []
