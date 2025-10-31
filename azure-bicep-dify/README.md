@@ -88,7 +88,111 @@ az account set --subscription <your-subscription-id>
 az bicep version
 ```
 
-## プロジェクト構造（予定）
+## デプロイ手順
+
+このプロジェクトは3フェーズのデプロイプロセスを使用します：
+
+1. **フェーズ1**: Azure Container Registry (ACR) のデプロイ
+2. **フェーズ2**: カスタムnginxコンテナのビルドとACRへのプッシュ
+3. **フェーズ3**: メインインフラストラクチャのデプロイ
+
+### パラメータファイルの準備
+
+デプロイ前に、環境に応じたパラメータファイルを更新してください：
+
+**開発環境** (`bicep/main/parameters/dev.bicepparam`):
+```bicep
+param postgresqlAdminPassword = 'YOUR_STRONG_PASSWORD'
+param keyVaultAdminObjectId = 'YOUR_AZURE_AD_OBJECT_ID'
+param difySecretKey = 'YOUR_64_CHAR_HEX_STRING'
+```
+
+**本番環境** (`bicep/main/parameters/prod.bicepparam`):
+```bicep
+param postgresqlAdminPassword = 'YOUR_VERY_STRONG_PASSWORD'
+param keyVaultAdminObjectId = 'YOUR_AZURE_AD_OBJECT_ID'
+param difySecretKey = 'YOUR_64_CHAR_HEX_STRING'
+param sslCertificateSecretId = 'YOUR_KEYVAULT_CERT_ID'  // HTTPS用
+```
+
+### デプロイの実行
+
+#### 開発環境へのデプロイ
+
+```bash
+bash scripts/deploy.sh \
+  --environment dev \
+  --resource-group dify-dev-rg \
+  --location japaneast
+```
+
+#### 本番環境へのデプロイ
+
+```bash
+bash scripts/deploy.sh \
+  --environment prod \
+  --resource-group dify-prod-rg \
+  --location japaneast
+```
+
+#### What-If分析（変更内容の確認）
+
+```bash
+bash scripts/deploy.sh \
+  --environment dev \
+  --resource-group dify-dev-rg \
+  --what-if
+```
+
+### デプロイフローの詳細
+
+#### フェーズ1: ACRデプロイ
+- `bicep/acr-only/main.bicep` を使用してACRをデプロイ
+- ACR名とログインサーバーURLを取得
+
+#### フェーズ2: nginxコンテナビルド
+- `docker/nginx/` からカスタムnginxイメージをビルド
+- ACRにログインしてイメージをプッシュ
+- イメージURL: `<acr-login-server>/dify-nginx:latest`
+
+#### フェーズ3: メインインフラデプロイ
+- `bicep/main/main.bicep` を使用してすべてのリソースをデプロイ
+- ACR情報とnginxイメージURLをパラメータとして渡す
+- 以下のリソースがデプロイされます：
+  - Virtual Network
+  - PostgreSQL Flexible Server
+  - Redis Cache
+  - Blob Storage
+  - Container Apps Environment
+  - Container Apps (Web, API, Worker, nginx)
+  - Application Gateway
+  - Key Vault
+  - Log Analytics & Application Insights
+
+### デプロイ時間
+
+- フェーズ1 (ACR): 約2-3分
+- フェーズ2 (nginxビルド): 約3-5分
+- フェーズ3 (メインインフラ): 約20-30分
+- **合計**: 約25-38分
+
+### トラブルシューティング
+
+#### フェーズ2で失敗した場合
+
+nginxコンテナのビルド/プッシュのみを再実行：
+
+```bash
+bash scripts/build-and-push-nginx.sh \
+  --resource-group dify-dev-rg \
+  --acr-name <acr-name>
+```
+
+#### フェーズ3で失敗した場合
+
+ACRとnginxイメージは既に利用可能なので、パラメータを修正して再デプロイ可能です。
+
+## プロジェクト構造
 
 ```
 azure-bicep-dify/
@@ -97,23 +201,43 @@ azure-bicep-dify/
 │   ├── Dockerfile
 │   └── scripts/
 │       └── post-create.sh
-├── bicep/                  # Bicepモジュール（今後実装予定）
-│   ├── main.bicep
-│   ├── modules/
-│   │   ├── containerApps.bicep
-│   │   ├── database.bicep
-│   │   ├── redis.bicep
-│   │   ├── storage.bicep
-│   │   ├── network.bicep
-│   │   └── monitoring.bicep
-│   └── parameters/
-│       ├── dev.bicepparam
-│       └── prod.bicepparam
-├── scripts/                # デプロイ・管理スクリプト（今後実装予定）
-│   ├── deploy.sh
-│   ├── setup-local.sh
-│   └── cleanup.sh
-├── docker-compose.yml      # ローカル開発用（今後実装予定）
+├── bicep/                  # Bicepテンプレート
+│   ├── acr-only/          # ACR専用デプロイ
+│   │   ├── main.bicep
+│   │   ├── modules/
+│   │   │   └── acr.bicep
+│   │   └── parameters/
+│   │       ├── dev.bicepparam
+│   │       └── prod.bicepparam
+│   └── main/              # メインインフラデプロイ
+│       ├── main.bicep
+│       ├── modules/
+│       │   ├── containerApp.bicep
+│       │   ├── containerAppsEnv.bicep
+│       │   ├── postgresql.bicep
+│       │   ├── redis.bicep
+│       │   ├── storage.bicep
+│       │   ├── network.bicep
+│       │   ├── monitoring.bicep
+│       │   ├── keyvault.bicep
+│       │   ├── applicationGateway.bicep
+│       │   ├── nginxContainerApp.bicep
+│       │   ├── privateEndpoint.bicep
+│       │   ├── privateDnsZone.bicep
+│       │   └── privateDnsRecord.bicep
+│       └── parameters/
+│           ├── dev.bicepparam
+│           └── prod.bicepparam
+├── scripts/                # デプロイ・管理スクリプト
+│   ├── deploy.sh          # 3フェーズデプロイスクリプト
+│   ├── build-and-push-nginx.sh
+│   └── validate-prerequisites.sh
+├── docker/                 # カスタムDockerイメージ
+│   └── nginx/
+│       ├── Dockerfile
+│       ├── nginx.conf
+│       ├── default.conf.template
+│       └── proxy_params
 └── README.md
 ```
 

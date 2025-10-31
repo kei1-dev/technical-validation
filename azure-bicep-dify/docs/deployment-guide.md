@@ -204,9 +204,19 @@ param difyWorkerImage = 'langgenius/dify-api:0.6.13'
 
 ## デプロイ手順
 
-### 方法1: Azure CLI直接デプロイ（推奨）
+### 3フェーズデプロイアーキテクチャ
 
-最もシンプルで確実な方法です。以下の手順で実行してください。
+このプロジェクトは、ACRとnginxコンテナを事前に準備してからメインインフラをデプロイする3フェーズアーキテクチャを採用しています：
+
+1. **フェーズ1**: Azure Container Registry (ACR) のデプロイ
+2. **フェーズ2**: カスタムnginxコンテナのビルドとACRへのプッシュ
+3. **フェーズ3**: メインインフラストラクチャのデプロイ
+
+この構成により、Container Appsがデプロイされる前にnginxイメージがACRで確実に利用可能になります。
+
+### 方法1: デプロイスクリプトの使用（推奨）
+
+最もシンプルで確実な方法です。スクリプトが3フェーズを自動的に実行します。
 
 #### ステップ1: リソースグループの作成
 
@@ -216,11 +226,17 @@ az group create \
   --name dify-dev-rg \
   --location japaneast \
   --tags Environment=Development Project=Dify
+
+# 本番環境
+az group create \
+  --name dify-prod-rg \
+  --location japaneast \
+  --tags Environment=Production Project=Dify
 ```
 
 #### ステップ2: パラメータファイルの確認
 
-`bicep/parameters/dev.bicepparam`を編集し、以下を確認：
+**メインパラメータファイル** (`bicep/main/parameters/dev.bicepparam`) を編集：
 
 ```bicep
 // 必須：PostgreSQL管理者パスワード（強力なパスワードに変更）
@@ -229,50 +245,40 @@ param postgresqlAdminPassword = 'CHANGE_ME_STRONG_PASSWORD_123!'
 // 必須：Key Vault管理者のObject ID
 param keyVaultAdminObjectId = ''  // az ad signed-in-user show --query id -o tsv で取得
 
-// 必須：nginx imageはカスタムイメージを使用（Difyルーティングに必須）
-// 初回デプロイ時は一時的に 'nginx:alpine' を使用し、後でカスタムイメージに更新
-param nginxImage = 'nginx:alpine'
+// 必須：Dify暗号化キー（64文字のランダムな16進数文字列）
+param difySecretKey = 'CHANGE_ME_RANDOM_64_CHAR_HEX_STRING'
 ```
 
 **重要：**
-- 初回デプロイでは`nginxImage = 'nginx:alpine'`を使用します（ACR認証の問題回避）
-- **デプロイ後、必ずカスタムnginxイメージに更新してください**（ステップ5で実施）
-- カスタムイメージなしではDifyのルーティングが正しく動作しません
+- `nginxImage`、`acrName`、`acrLoginServer`、`acrAdminUsername`、`acrAdminPassword`はパラメータファイルに記載しないでください
+- これらの値はデプロイスクリプトによって自動的に設定されます
 
-#### ステップ3: メインインフラストラクチャのデプロイ
+**ACRパラメータファイル** (`bicep/acr-only/parameters/dev.bicepparam`) は編集不要です（環境とロケーションのみ）。
+
+#### ステップ3: デプロイスクリプトの実行
 
 ```bash
-cd bicep
-
-az deployment group create \
-  --name "dify-dev-$(date +%Y%m%d-%H%M%S)" \
+# 開発環境へのデプロイ
+bash scripts/deploy.sh \
+  --environment dev \
   --resource-group dify-dev-rg \
-  --template-file main.bicep \
-  --parameters parameters/dev.bicepparam
+  --location japaneast
+
+# 本番環境へのデプロイ
+bash scripts/deploy.sh \
+  --environment prod \
+  --resource-group dify-prod-rg \
+  --location japaneast
 ```
 
-デプロイには **10〜15分** かかります。完了すると以下が作成されます：
-- VNet、NSG、Private Endpoints
-- PostgreSQL、Redis、Storage、Key Vault
-- Container Apps（Web、API、Worker、nginx）
-- Application Gateway
-
-**✅ 2025年1月更新：自動設定される項目**
-
-最新のBicepテンプレートでは、以下が**自動的に**設定されるため、デプロイ後の手動設定は不要です：
-
-1. **データベースマイグレーション**
-   - `MIGRATION_ENABLED=true`がAPIとWorkerコンテナに設定済み
-   - コンテナ起動時に自動的にデータベーススキーマが初期化されます
-   - 手動でのデータベース初期化は不要
-
-2. **Azure Blob Storage接続URL**
-   - `AZURE_BLOB_ACCOUNT_URL`が自動生成されて設定済み
-   - 正しいStorage Account URLが自動的に設定されます
-
-これらの設定により、デプロイ直後から500エラーなしでDifyが利用可能になります。
+デプロイには **25〜38分** かかります：
+- フェーズ1 (ACR): 約2-3分
+- フェーズ2 (nginxビルド): 約3-5分
+- フェーズ3 (メインインフラ): 約20-30分
 
 #### ステップ4: デプロイ結果の確認
+
+スクリプトが完了すると、デプロイ出力が表示されます：
 
 ```bash
 # Application GatewayのパブリックIPとFQDNを取得
@@ -296,7 +302,92 @@ az network application-gateway show-backend-health \
   --output table
 ```
 
-#### ステップ5（必須）: カスタムnginxイメージへの更新
+### 方法2: 手動での3フェーズデプロイ
+
+各フェーズを個別に実行したい場合の手順です。
+
+#### フェーズ1: ACRのデプロイ
+
+```bash
+cd bicep/acr-only
+
+az deployment group create \
+  --name "acr-dev-$(date +%Y%m%d-%H%M%S)" \
+  --resource-group dify-dev-rg \
+  --template-file main.bicep \
+  --parameters parameters/dev.bicepparam
+
+# ACR情報を取得
+ACR_NAME=$(az deployment group show \
+  --name <deployment-name> \
+  --resource-group dify-dev-rg \
+  --query 'properties.outputs.acrName.value' \
+  -o tsv)
+
+ACR_LOGIN_SERVER=$(az deployment group show \
+  --name <deployment-name> \
+  --resource-group dify-dev-rg \
+  --query 'properties.outputs.acrLoginServer.value' \
+  -o tsv)
+```
+
+#### フェーズ2: nginxコンテナのビルドとプッシュ
+
+```bash
+cd ../../scripts
+
+bash build-and-push-nginx.sh \
+  --resource-group dify-dev-rg \
+  --acr-name $ACR_NAME
+
+# nginxイメージURLを構築
+NGINX_IMAGE_URL="${ACR_LOGIN_SERVER}/dify-nginx:latest"
+
+# ACR認証情報を取得
+ACR_USERNAME=$(az acr credential show \
+  --name $ACR_NAME \
+  --resource-group dify-dev-rg \
+  --query 'username' \
+  -o tsv)
+
+ACR_PASSWORD=$(az acr credential show \
+  --name $ACR_NAME \
+  --resource-group dify-dev-rg \
+  --query 'passwords[0].value' \
+  -o tsv)
+```
+
+#### フェーズ3: メインインフラストラクチャのデプロイ
+
+```bash
+cd ../bicep/main
+
+az deployment group create \
+  --name "main-dev-$(date +%Y%m%d-%H%M%S)" \
+  --resource-group dify-dev-rg \
+  --template-file main.bicep \
+  --parameters parameters/dev.bicepparam \
+  --parameters acrName="$ACR_NAME" \
+  --parameters acrLoginServer="$ACR_LOGIN_SERVER" \
+  --parameters acrAdminUsername="$ACR_USERNAME" \
+  --parameters acrAdminPassword="$ACR_PASSWORD" \
+  --parameters nginxImage="$NGINX_IMAGE_URL"
+```
+
+**✅ 自動設定される項目**
+
+最新のBicepテンプレートでは、以下が**自動的に**設定されます：
+
+1. **データベースマイグレーション**
+   - `MIGRATION_ENABLED=true`がAPIとWorkerコンテナに設定済み
+   - コンテナ起動時に自動的にデータベーススキーマが初期化されます
+
+2. **Azure Blob Storage接続URL**
+   - `AZURE_BLOB_ACCOUNT_URL`が自動生成されて設定済み
+
+3. **ACR認証**
+   - Container Appsに自動的にACR認証情報が設定されます
+   - カスタムnginxイメージが確実にプルされます
 
 **重要：このステップは必須です。** カスタムnginxイメージにはDifyのルーティング設定とContainer Apps内部通信に必要なHostヘッダー設定が含まれています。
 

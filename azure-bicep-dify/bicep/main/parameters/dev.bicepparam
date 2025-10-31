@@ -1,5 +1,5 @@
 // ============================================================================
-// Production Environment Parameters
+// Development Environment Parameters
 // ============================================================================
 
 using '../main.bicep'
@@ -8,15 +8,14 @@ using '../main.bicep'
 // Basic Parameters
 // ============================================================================
 
-param environment = 'prod'
+param environment = 'dev'
 param location = 'japaneast'
 
 param tags = {
-  Environment: 'Production'
+  Environment: 'Development'
   Project: 'Dify'
   ManagedBy: 'Bicep'
-  CostCenter: 'Product'
-  Criticality: 'High'
+  CostCenter: 'Engineering'
 }
 
 // ============================================================================
@@ -33,30 +32,32 @@ param privateEndpointSubnetPrefix = '10.0.2.0/24'
 // ============================================================================
 
 // IMPORTANT: Change these values before deployment
-// Use strong, unique passwords stored in Azure Key Vault or secure password manager
 param postgresqlAdminUsername = 'difydbadmin'
-param postgresqlAdminPassword = 'CHANGE_ME_VERY_STRONG_PASSWORD_456!'
+param postgresqlAdminPassword = 'DifyDev2025!b5RvI8kIUfMXafm2#Pass'
 
-// Production environment uses General Purpose tier with HA
-param postgresqlSkuName = 'Standard_D2s_v3'
-param postgresqlStorageSizeGB = 128
-param enablePostgresqlHA = true
+// Dify Secret Key for encryption (change this to a random 64-character hex string)
+param difySecretKey = '332f9ee17eb1b38d651c6c45281d4440fac1d33c59383b372681ae8f7f07129b'
+
+// Dev environment uses Burstable tier for cost optimization
+param postgresqlSkuName = 'Standard_B1ms'
+param postgresqlStorageSizeGB = 32
+param enablePostgresqlHA = false
 
 // ============================================================================
 // Redis Parameters
 // ============================================================================
 
-// Production environment uses Standard tier with replication
-param redisSkuName = 'Standard'
-param redisSkuCapacity = 2
+// Dev environment uses Basic tier
+param redisSkuName = 'Basic'
+param redisSkuCapacity = 1
 
 // ============================================================================
 // Storage Parameters
 // ============================================================================
 
-// Production environment uses ZRS (Zone-Redundant Storage)
-param storageSkuName = 'Standard_ZRS'
-param enableStorageVersioning = true
+// Dev environment uses LRS (Locally Redundant Storage)
+param storageSkuName = 'Standard_LRS'
+param enableStorageVersioning = false
 
 // ============================================================================
 // Key Vault Parameters
@@ -64,29 +65,36 @@ param enableStorageVersioning = true
 
 // IMPORTANT: Set your Azure AD user/service principal Object ID
 // You can get this by running: az ad signed-in-user show --query id -o tsv
-param keyVaultAdminObjectId = ''
+param keyVaultAdminObjectId = '4f9f1e37-e388-4537-a414-aa967b145350'
 
 // ============================================================================
 // Application Gateway Parameters
 // ============================================================================
 
-// Production environment uses WAF_v2 (Web Application Firewall)
-param appGatewaySkuName = 'WAF_v2'
-param enableWaf = true
+// Dev environment uses Standard_v2 (no WAF)
+param appGatewaySkuName = 'Standard_v2'
+param enableWaf = false
 
-// SSL Certificate (required for production)
-// IMPORTANT: Upload your SSL certificate to Key Vault first
-// Format: https://<keyvault-name>.vault.azure.net/secrets/<secret-name>/<version>
+// SSL Certificate (optional, leave empty for HTTP-only)
 param sslCertificateSecretId = ''
 
 // ============================================================================
 // Container Apps Parameters
 // ============================================================================
 
-param difyWebImage = 'langgenius/dify-web:0.6.13'
-param difyApiImage = 'langgenius/dify-api:0.6.13'
-param difyWorkerImage = 'langgenius/dify-api:0.6.13'
+param difyWebImage = 'langgenius/dify-web:latest'
+param difyApiImage = 'langgenius/dify-api:latest'
+param difyWorkerImage = 'langgenius/dify-api:latest'
 
-// Production environment: min=2 for high availability
-param containerAppMinReplicas = 2
-param containerAppMaxReplicas = 10
+// NOTE: nginxImage, acrName, acrLoginServer, acrAdminUsername, and acrAdminPassword
+// are provided by the deployment script and should NOT be set here
+// TEMPORARY: Adding these parameters for manual deployment
+param acrName = 'difyacrdevenqofxlmd5ei6'
+param acrLoginServer = 'difyacrdevenqofxlmd5ei6.azurecr.io'
+param acrAdminUsername = 'difyacrdevenqofxlmd5ei6'
+param acrAdminPassword = 'temppassword'  // Will be overridden by command line
+param nginxImage = 'difyacrdevenqofxlmd5ei6.azurecr.io/dify-nginx:latest'
+
+// Dev environment: min=1 to avoid 502 errors (at least 1 replica always running)
+param containerAppMinReplicas = 1
+param containerAppMaxReplicas = 5

@@ -20,6 +20,16 @@ param managedIdentityId string
 @description('nginx Docker image')
 param nginxImage string
 
+@description('ACR login server URL')
+param acrLoginServer string
+
+@description('ACR admin username')
+param acrAdminUsername string
+
+@description('ACR admin password')
+@secure()
+param acrAdminPassword string
+
 @description('dify-web app name')
 param difyWebAppName string
 
@@ -44,6 +54,19 @@ resource nginxContainerApp 'Microsoft.App/containerApps@2023-05-01' = {
     managedEnvironmentId: containerAppsEnvironmentId
     configuration: {
       activeRevisionsMode: 'Single'
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acrAdminPassword
+        }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrAdminUsername
+          passwordSecretRef: 'acr-password'
+        }
+      ]
       ingress: {
         external: true
         targetPort: 80

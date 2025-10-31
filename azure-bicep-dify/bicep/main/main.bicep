@@ -94,7 +94,21 @@ param difyApiImage string = 'langgenius/dify-api:latest'
 param difyWorkerImage string = 'langgenius/dify-api:latest'
 
 @description('nginx container image')
-param nginxImage string = 'nginx:alpine'
+param nginxImage string
+
+// ACR Parameters
+@description('ACR name for container registry')
+param acrName string
+
+@description('ACR login server URL')
+param acrLoginServer string
+
+@description('ACR admin username')
+param acrAdminUsername string
+
+@description('ACR admin password')
+@secure()
+param acrAdminPassword string
 
 @description('Min replicas for Container Apps')
 param containerAppMinReplicas int = environment == 'prod' ? 2 : 0
@@ -151,19 +165,7 @@ module keyvault 'modules/keyvault.bicep' = {
   }
 }
 
-// 4. Azure Container Registry
-module acr 'modules/acr.bicep' = {
-  name: 'acr-deployment'
-  params: {
-    environment: environment
-    location: location
-    tags: tags
-    skuName: 'Basic'
-    adminUserEnabled: true
-  }
-}
-
-// 5. Data Layer - PostgreSQL
+// 4. Data Layer - PostgreSQL
 module postgresql 'modules/postgresql.bicep' = {
   name: 'postgresql-deployment'
   params: {
@@ -722,6 +724,9 @@ module containerAppNginx 'modules/nginxContainerApp.bicep' = {
     containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
     managedIdentityId: keyvault.outputs.containerAppsIdentityId
     nginxImage: nginxImage
+    acrLoginServer: acrLoginServer
+    acrAdminUsername: acrAdminUsername
+    acrAdminPassword: acrAdminPassword
     difyWebAppName: containerAppWeb.outputs.containerAppName
     difyApiAppName: containerAppApi.outputs.containerAppName
   }
@@ -794,8 +799,4 @@ output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspa
 @description('Application Insights Name')
 output applicationInsightsName string = monitoring.outputs.applicationInsightsName
 
-@description('Azure Container Registry Name')
-output acrName string = acr.outputs.acrName
 
-@description('Azure Container Registry Login Server')
-output acrLoginServer string = acr.outputs.acrLoginServer
