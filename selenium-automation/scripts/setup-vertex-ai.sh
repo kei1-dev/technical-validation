@@ -211,43 +211,33 @@ install_gcloud_cli() {
     echo ""
 
     # Detect shell and set appropriate profile file
+    # Use $SHELL environment variable to detect user's login shell
+    # (not $ZSH_VERSION/$BASH_VERSION as this script runs in bash)
     SHELL_PROFILE=""
     PATH_INC=""
     COMPLETION_INC=""
 
-    if [ -n "$ZSH_VERSION" ]; then
-        SHELL_PROFILE="$HOME/.zshrc"
-        PATH_INC="$INSTALL_DIR/path.zsh.inc"
-        COMPLETION_INC="$INSTALL_DIR/completion.zsh.inc"
-        SHELL_NAME="Zsh"
-    elif [ -n "$BASH_VERSION" ]; then
-        SHELL_PROFILE="$HOME/.bashrc"
-        PATH_INC="$INSTALL_DIR/path.bash.inc"
-        COMPLETION_INC="$INSTALL_DIR/completion.bash.inc"
-        SHELL_NAME="Bash"
-    else
-        # Fallback: check $SHELL environment variable
-        case "$SHELL" in
-            */zsh)
-                SHELL_PROFILE="$HOME/.zshrc"
-                PATH_INC="$INSTALL_DIR/path.zsh.inc"
-                COMPLETION_INC="$INSTALL_DIR/completion.zsh.inc"
-                SHELL_NAME="Zsh"
-                ;;
-            */bash)
-                SHELL_PROFILE="$HOME/.bashrc"
-                PATH_INC="$INSTALL_DIR/path.bash.inc"
-                COMPLETION_INC="$INSTALL_DIR/completion.bash.inc"
-                SHELL_NAME="Bash"
-                ;;
-            *)
-                SHELL_PROFILE="$HOME/.bashrc"
-                PATH_INC="$INSTALL_DIR/path.bash.inc"
-                COMPLETION_INC="$INSTALL_DIR/completion.bash.inc"
-                SHELL_NAME="Bash (default)"
-                ;;
-        esac
-    fi
+    case "$SHELL" in
+        */zsh)
+            SHELL_PROFILE="$HOME/.zshrc"
+            PATH_INC="$INSTALL_DIR/path.zsh.inc"
+            COMPLETION_INC="$INSTALL_DIR/completion.zsh.inc"
+            SHELL_NAME="Zsh"
+            ;;
+        */bash)
+            SHELL_PROFILE="$HOME/.bashrc"
+            PATH_INC="$INSTALL_DIR/path.bash.inc"
+            COMPLETION_INC="$INSTALL_DIR/completion.bash.inc"
+            SHELL_NAME="Bash"
+            ;;
+        *)
+            # Default to bash if shell is unknown
+            SHELL_PROFILE="$HOME/.bashrc"
+            PATH_INC="$INSTALL_DIR/path.bash.inc"
+            COMPLETION_INC="$INSTALL_DIR/completion.bash.inc"
+            SHELL_NAME="Bash (default)"
+            ;;
+    esac
 
     echo "Detected shell: $SHELL_NAME"
     echo "Profile file: $SHELL_PROFILE"
@@ -256,12 +246,12 @@ install_gcloud_cli() {
     # Check if profile update should be skipped
     if [ "$SKIP_PROFILE_UPDATE" = true ]; then
         echo "Skipping shell profile update (--skip-profile-update)"
-        # Source for current session anyway
+        # Source for current session anyway (suppress errors if shell mismatch)
         if [ -f "$PATH_INC" ]; then
-            source "$PATH_INC"
+            source "$PATH_INC" 2>/dev/null || true
         fi
         if [ -f "$COMPLETION_INC" ]; then
-            source "$COMPLETION_INC"
+            source "$COMPLETION_INC" 2>/dev/null || true
         fi
         echo -e "${GREEN}✓ gcloud CLI is available in your current session${NC}"
         echo ""
@@ -299,12 +289,12 @@ install_gcloud_cli() {
             echo -e "${GREEN}✓ Added gcloud CLI to $SHELL_PROFILE${NC}"
         fi
 
-        # Source the path for current session
+        # Source the path for current session (suppress errors if shell mismatch)
         if [ -f "$PATH_INC" ]; then
-            source "$PATH_INC"
+            source "$PATH_INC" 2>/dev/null || true
         fi
         if [ -f "$COMPLETION_INC" ]; then
-            source "$COMPLETION_INC"
+            source "$COMPLETION_INC" 2>/dev/null || true
         fi
 
         echo ""
@@ -319,9 +309,9 @@ install_gcloud_cli() {
         echo "  if [ -f '$COMPLETION_INC' ]; then source '$COMPLETION_INC'; fi"
         echo ""
 
-        # Source for current session anyway
+        # Source for current session anyway (suppress errors if shell mismatch)
         if [ -f "$PATH_INC" ]; then
-            source "$PATH_INC"
+            source "$PATH_INC" 2>/dev/null || true
             echo -e "${GREEN}✓ gcloud CLI is available in your current session${NC}"
         fi
         echo ""
@@ -329,6 +319,29 @@ install_gcloud_cli() {
 
     # Return to original directory
     cd "$ORIGINAL_DIR"
+}
+
+# Function to setup Claude Code aliases
+setup_claude_aliases() {
+    local SHELL_PROFILE="$1"
+
+    echo "Setting up Claude Code aliases..."
+    echo ""
+
+    # Check if already added (to prevent duplicates)
+    if grep -q "# Added by Vertex AI Setup Script - Claude Code Aliases" "$SHELL_PROFILE"; then
+        echo -e "${YELLOW}Note: Claude Code aliases already exist in $SHELL_PROFILE${NC}"
+        echo ""
+        return
+    fi
+
+    # Add to shell profile
+    echo "" >> "$SHELL_PROFILE"
+    echo "# Added by Vertex AI Setup Script - Claude Code Aliases" >> "$SHELL_PROFILE"
+    echo "alias claude-normal='command claude'" >> "$SHELL_PROFILE"
+    echo "alias claude='command claude --dangerously-skip-permissions'" >> "$SHELL_PROFILE"
+    echo -e "${GREEN}✓ Added Claude Code aliases to $SHELL_PROFILE${NC}"
+    echo ""
 }
 
 # Add gcloud to PATH if it exists but not in current PATH
@@ -476,9 +489,6 @@ ANTHROPIC_VERTEX_PROJECT_ID=$PROJECT_ID
 # Cloud ML Region (use 'global' for automatic routing, or specific region)
 CLOUD_ML_REGION=global
 
-# Regional model override for asia-northeast1 (Tokyo)
-VERTEX_REGION_CLAUDE_4_5_SONNET=$REGION
-
 # Default model to use
 ANTHROPIC_MODEL=claude-sonnet-4-5@20250929
 
@@ -499,13 +509,48 @@ cat > .claude/settings.json << EOF
     "CLAUDE_CODE_USE_VERTEX": "1",
     "ANTHROPIC_VERTEX_PROJECT_ID": "$PROJECT_ID",
     "CLOUD_ML_REGION": "global",
-    "VERTEX_REGION_CLAUDE_4_5_SONNET": "$REGION",
     "ANTHROPIC_MODEL": "claude-sonnet-4-5@20250929"
   }
 }
 EOF
 echo -e "${GREEN}✓ .claude/settings.json created${NC}"
 echo ""
+
+# Setup Claude Code aliases in shell profile
+if [ "$SKIP_PROFILE_UPDATE" = false ]; then
+    # Detect shell and set appropriate profile file
+    # Use $SHELL environment variable to detect user's login shell
+    # (not $ZSH_VERSION/$BASH_VERSION as this script runs in bash)
+    SHELL_PROFILE=""
+    case "$SHELL" in
+        */zsh)
+            SHELL_PROFILE="$HOME/.zshrc"
+            SHELL_NAME="Zsh"
+            ;;
+        */bash)
+            SHELL_PROFILE="$HOME/.bashrc"
+            SHELL_NAME="Bash"
+            ;;
+        *)
+            # Default to bash if shell is unknown
+            SHELL_PROFILE="$HOME/.bashrc"
+            SHELL_NAME="Bash (default)"
+            ;;
+    esac
+
+    # Create profile file if it doesn't exist
+    if [ ! -f "$SHELL_PROFILE" ]; then
+        touch "$SHELL_PROFILE"
+        echo -e "${GREEN}✓ Created $SHELL_PROFILE${NC}"
+    fi
+
+    # Setup aliases
+    setup_claude_aliases "$SHELL_PROFILE"
+else
+    echo "Skipping Claude Code aliases setup (--skip-profile-update)"
+    echo ""
+fi
+
 echo "========================================="
 echo -e "${GREEN}Setup Complete!${NC}"
 echo "========================================="
@@ -529,3 +574,15 @@ echo "  - Settings are automatically loaded from .claude/settings.json"
 echo "  - These files can be committed to Git (no sensitive credentials)"
 echo "  - Authentication is handled separately via Google Cloud ADC"
 echo ""
+
+if [ "$SKIP_PROFILE_UPDATE" = false ]; then
+    echo "Claude Code Aliases:"
+    echo "  - 'claude' runs with --dangerously-skip-permissions flag"
+    echo "  - 'claude-normal' runs the standard claude command"
+    echo ""
+    echo "To activate aliases in your current terminal:"
+    echo "  source $SHELL_PROFILE"
+    echo ""
+    echo "Or open a new terminal window/tab"
+    echo ""
+fi

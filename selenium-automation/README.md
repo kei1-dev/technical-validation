@@ -218,7 +218,6 @@ OPTIONS:
     "CLAUDE_CODE_USE_VERTEX": "1",
     "ANTHROPIC_VERTEX_PROJECT_ID": "your-project-id",
     "CLOUD_ML_REGION": "global",
-    "VERTEX_REGION_CLAUDE_4_5_SONNET": "asia-northeast1",
     "ANTHROPIC_MODEL": "claude-sonnet-4-5@20250929"
   }
 }
@@ -242,9 +241,6 @@ ANTHROPIC_VERTEX_PROJECT_ID=your-project-id
 
 # Cloud ML Region (use 'global' for automatic routing, or specific region)
 CLOUD_ML_REGION=global
-
-# Regional model override for asia-northeast1 (Tokyo)
-VERTEX_REGION_CLAUDE_4_5_SONNET=asia-northeast1
 
 # Default model to use
 ANTHROPIC_MODEL=claude-sonnet-4-5@20250929

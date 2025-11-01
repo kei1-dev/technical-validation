@@ -106,32 +106,30 @@ fi
 SHELL_PROFILE=""
 if [ "$SKIP_SHELL_CLEANUP" = false ]; then
     # Detect shell and set appropriate profile file
-    if [ -n "$ZSH_VERSION" ]; then
-        SHELL_PROFILE="$HOME/.zshrc"
-        SHELL_NAME="Zsh"
-    elif [ -n "$BASH_VERSION" ]; then
-        SHELL_PROFILE="$HOME/.bashrc"
-        SHELL_NAME="Bash"
-    else
-        # Fallback: check $SHELL environment variable
-        case "$SHELL" in
-            */zsh)
-                SHELL_PROFILE="$HOME/.zshrc"
-                SHELL_NAME="Zsh"
-                ;;
-            */bash)
-                SHELL_PROFILE="$HOME/.bashrc"
-                SHELL_NAME="Bash"
-                ;;
-            *)
-                SHELL_PROFILE="$HOME/.bashrc"
-                SHELL_NAME="Bash (default)"
-                ;;
-        esac
-    fi
+    # Use $SHELL environment variable to detect user's login shell
+    # (not $ZSH_VERSION/$BASH_VERSION as this script runs in bash)
+    case "$SHELL" in
+        */zsh)
+            SHELL_PROFILE="$HOME/.zshrc"
+            SHELL_NAME="Zsh"
+            ;;
+        */bash)
+            SHELL_PROFILE="$HOME/.bashrc"
+            SHELL_NAME="Bash"
+            ;;
+        *)
+            # Default to bash if shell is unknown
+            SHELL_PROFILE="$HOME/.bashrc"
+            SHELL_NAME="Bash (default)"
+            ;;
+    esac
 
     if [ -f "$SHELL_PROFILE" ] && grep -q "google-cloud-sdk/path" "$SHELL_PROFILE"; then
         echo "  - gcloud CLI configuration from $SHELL_PROFILE"
+    fi
+
+    if [ -f "$SHELL_PROFILE" ] && grep -q "# Added by Vertex AI Setup Script - Claude Code Aliases" "$SHELL_PROFILE"; then
+        echo "  - Claude Code aliases from $SHELL_PROFILE"
     fi
 fi
 
@@ -230,6 +228,37 @@ if [ "$SKIP_SHELL_CLEANUP" = false ]; then
         echo -e "${YELLOW}Note: Restart your terminal or run 'source $SHELL_PROFILE' for changes to take effect${NC}"
     else
         echo "No gcloud CLI configuration found in $SHELL_PROFILE"
+    fi
+    echo ""
+
+    # Clean up Claude Code aliases
+    if [ -f "$SHELL_PROFILE" ] && grep -q "# Added by Vertex AI Setup Script - Claude Code Aliases" "$SHELL_PROFILE"; then
+        echo "Cleaning up Claude Code aliases from $SHELL_PROFILE..."
+
+        # Remove the lines added by the setup script
+        # This removes:
+        # - The comment line: "# Added by Vertex AI Setup Script - Claude Code Aliases"
+        # - The two alias lines
+        # - Any blank lines immediately before the comment
+
+        if sed --version >/dev/null 2>&1; then
+            # GNU sed (Linux)
+            sed -i '/# Added by Vertex AI Setup Script - Claude Code Aliases/,+2d' "$SHELL_PROFILE"
+        else
+            # BSD sed (macOS)
+            sed -i '' '/# Added by Vertex AI Setup Script - Claude Code Aliases/,+2d' "$SHELL_PROFILE"
+        fi
+
+        # Also remove any empty lines that might be left
+        if sed --version >/dev/null 2>&1; then
+            sed -i '/^$/N;/^\n$/d' "$SHELL_PROFILE"
+        else
+            sed -i '' '/^$/N;/^\n$/d' "$SHELL_PROFILE"
+        fi
+
+        echo -e "${GREEN}✓ Removed Claude Code aliases from $SHELL_PROFILE${NC}"
+    else
+        echo "No Claude Code aliases found in $SHELL_PROFILE"
     fi
     echo ""
 fi
