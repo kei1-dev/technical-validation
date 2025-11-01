@@ -1,0 +1,9 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_VERTEX": "1",
+    "ANTHROPIC_VERTEX_PROJECT_ID": "velvety-rarity-448706-t1",
+    "CLOUD_ML_REGION": "global",
+    "VERTEX_REGION_CLAUDE_4_5_SONNET": "asia-northeast1",
+    "ANTHROPIC_MODEL": "claude-sonnet-4-5@20250929"
+  }
+}
