@@ -1,0 +1,1 @@
+"""Terakoya automation tests."""

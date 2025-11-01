@@ -737,6 +737,18 @@ BROWSER_TIMEOUT=30              # タイムアウト（秒）
 # 出力設定（オプション）
 OUTPUT_DIR=output               # 出力ディレクトリ
 LOG_LEVEL=INFO                  # ログレベル
+
+# ============================================================================
+# AI Extraction Settings
+# ============================================================================
+# Enable AI-powered lesson data extraction using Claude API
+# Set to 'true' to use AI extraction, 'false' to use regex-based extraction
+TERAKOYA_USE_AI_EXTRACTION=true
+
+# Batch size for AI extraction (number of cards processed per API call)
+# Higher values reduce API calls but may hit rate limits
+# Recommended: 5-20
+TERAKOYA_AI_BATCH_SIZE=10
 ```
 
 ### トラブルシューティング
