@@ -508,8 +508,285 @@ cp ~/.zshrc.bak.YYYYMMDD-HHMMSS ~/.zshrc
 source ~/.zshrc
 ```
 
+## Selenium自動化とAI処理
+
+このプロジェクトでは、Seleniumによる画面自動化とVertex AI（Claude）を組み合わせたインテリジェントな画面処理自動化を実現します。
+
+### セットアップ
+
+#### 1. Python環境のセットアップ
+
+Pipenvを使用して仮想環境を構築します：
+
+```bash
+# Pipenv環境の有効化
+pipenv shell
+
+# または、Pipenv経由でコマンドを実行
+pipenv run python examples/01_basic_scraping.py
+```
+
+#### 2. 必要なパッケージ
+
+以下のパッケージがインストールされています：
+
+- `selenium` - Web自動化フレームワーク
+- `webdriver-manager` - ChromeDriverの自動管理
+- `anthropic[vertex]` - Vertex AI経由でClaude APIを使用
+- `google-cloud-aiplatform` - Vertex AIサポート
+- `python-dotenv` - 環境変数管理
+- `beautifulsoup4` - HTML解析
+- `lxml` - XML/HTML処理
+- `pandas` - データ処理
+
+### プロジェクト構造
+
+```
+selenium-automation/
+├── src/                    # メインソースコード
+│   ├── automation/         # Selenium自動化モジュール
+│   │   ├── browser.py      # ブラウザ操作
+│   │   └── scraper.py      # データ抽出
+│   ├── ai_processing/      # AI処理モジュール
+│   │   └── analyzer.py     # コンテンツ分析
+│   └── utils/              # ユーティリティ
+│       ├── config.py       # 設定管理
+│       ├── logger.py       # ロギング
+│       └── file_utils.py   # ファイル操作
+├── examples/               # サンプルスクリプト
+│   ├── 01_basic_scraping.py      # 基本的なスクレイピング
+│   ├── 02_text_analysis.py       # テキスト分析
+│   ├── 03_structured_data.py     # 構造化データ抽出
+│   └── 04_form_interaction.py    # フォーム操作
+├── tests/                  # テストコード
+├── output/                 # 実行結果の出力先
+├── Pipfile                 # Python依存関係定義
+└── .env                    # 環境変数設定
+```
+
+### 使用例
+
+#### 1. 基本的なスクレイピング
+
+```bash
+pipenv run python examples/01_basic_scraping.py
+```
+
+Webページにアクセスし、スクリーンショットとHTMLソースを取得します。
+
+#### 2. テキスト分析（AI活用）
+
+```bash
+pipenv run python examples/02_text_analysis.py
+```
+
+Webページからテキストを抽出し、AIで以下を実行：
+- 要約生成
+- キーポイント抽出
+- 質問応答
+
+#### 3. 構造化データ抽出
+
+```bash
+pipenv run python examples/03_structured_data.py
+```
+
+Webページから表などの構造化データを抽出し、CSV保存とAI分析を実行します。
+
+#### 4. フォーム操作
+
+```bash
+pipenv run python examples/04_form_interaction.py
+```
+
+フォームを検出し、AIで適切なデータを生成して入力します。
+
+### カスタムスクリプトの作成
+
+独自の自動化スクリプトを作成する例：
+
+```python
+import sys
+from pathlib import Path
+
+# srcディレクトリをパスに追加
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from automation.browser import Browser
+from automation.scraper import Scraper
+from ai_processing.analyzer import ContentAnalyzer
+from utils.logger import setup_logger
+from utils.config import config
+
+# ロギング設定
+logger = setup_logger()
+
+def main():
+    # AI分析器の初期化
+    analyzer = ContentAnalyzer()
+
+    # ブラウザ起動（コンテキストマネージャで自動クリーンアップ）
+    with Browser(headless=False) as browser:
+        # ページにアクセス
+        browser.navigate("https://example.com")
+        browser.wait_for_page_load()
+
+        # HTMLを取得してパース
+        html = browser.get_page_source()
+        scraper = Scraper(html)
+
+        # テキスト抽出
+        text = scraper.get_text()
+
+        # AIで分析
+        summary = analyzer.summarize(text)
+        print(f"要約: {summary}")
+
+        # スクリーンショット
+        browser.screenshot(str(config.output_dir / "screenshot.png"))
+
+if __name__ == "__main__":
+    main()
+```
+
+### 主要クラスとメソッド
+
+#### Browser クラス (src/automation/browser.py)
+
+```python
+# ブラウザインスタンス作成
+browser = Browser(headless=False)
+
+# ページ遷移
+browser.navigate("https://example.com")
+
+# 要素の検索
+element = browser.find_element(By.CSS_SELECTOR, ".class-name")
+
+# テキスト入力
+browser.input_text(By.NAME, "username", "test_user")
+
+# クリック
+browser.click(By.ID, "submit-button")
+
+# スクリーンショット
+browser.screenshot("output/screenshot.png")
+
+# ブラウザ終了
+browser.close()
+```
+
+#### Scraper クラス (src/automation/scraper.py)
+
+```python
+# HTMLからスクレイパー作成
+scraper = Scraper(html_content)
+
+# テキスト抽出
+text = scraper.get_text(".main-content")
+
+# 表データの抽出
+df = scraper.extract_table("table.data")
+
+# 構造化データの抽出
+items = scraper.extract_structured_data(
+    item_selector=".product",
+    field_selectors={
+        "name": ".product-name",
+        "price": ".product-price"
+    }
+)
+```
+
+#### ContentAnalyzer クラス (src/ai_processing/analyzer.py)
+
+```python
+# AI分析器の初期化
+analyzer = ContentAnalyzer()
+
+# 要約生成
+summary = analyzer.summarize(text, max_length="medium")
+
+# キーポイント抽出
+key_points = analyzer.extract_key_points(text, num_points=5)
+
+# 質問応答
+answer = analyzer.answer_question(text, "What is this about?")
+
+# 構造化情報の抽出
+data = analyzer.extract_structured_info(
+    text,
+    fields=["name", "date", "price"]
+)
+```
+
+### 環境変数
+
+`.env`ファイルで以下の設定をカスタマイズできます：
+
+```bash
+# Vertex AI設定（setup-vertex-ai.shで自動設定）
+ANTHROPIC_VERTEX_PROJECT_ID=your-project-id
+CLOUD_ML_REGION=global
+ANTHROPIC_MODEL=claude-sonnet-4-5@20250929
+
+# ブラウザ設定（オプション）
+BROWSER_HEADLESS=false          # ヘッドレスモード
+BROWSER_TIMEOUT=30              # タイムアウト（秒）
+
+# 出力設定（オプション）
+OUTPUT_DIR=output               # 出力ディレクトリ
+LOG_LEVEL=INFO                  # ログレベル
+```
+
+### トラブルシューティング
+
+#### ChromeDriverが見つからない
+
+`webdriver-manager`が自動的にChromeDriverをダウンロードしますが、失敗する場合：
+
+```bash
+# Chromeブラウザが最新版か確認
+# Chromeを更新後、再度スクリプトを実行
+```
+
+#### Vertex AIの認証エラー
+
+```bash
+# Application Default Credentialsを再設定
+gcloud auth application-default login
+```
+
+#### メモリ不足エラー
+
+ヘッドレスモードを有効にしてメモリ使用量を削減：
+
+```python
+browser = Browser(headless=True)
+```
+
+または、環境変数で設定：
+
+```bash
+export BROWSER_HEADLESS=true
+```
+
+### ベストプラクティス
+
+1. **コンテキストマネージャの使用**: ブラウザは常に`with`文で使用し、自動クリーンアップを保証
+2. **待機処理**: ページロード待機やタイムアウト設定を適切に行う
+3. **エラーハンドリング**: try-exceptで例外を適切に処理
+4. **ログ出力**: `setup_logger()`でロギングを有効化し、デバッグを容易に
+5. **レート制限**: 同一サイトへの連続アクセスは適切な間隔を空ける
+
 ## 参考リンク
 
+### Vertex AI / Claude Code
 - [Google Cloud Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs)
 - [Claude on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude)
 - [Claude Code Documentation](https://docs.claude.com/en/docs/claude-code)
+
+### Selenium / Web自動化
+- [Selenium Documentation](https://www.selenium.dev/documentation/)
+- [Selenium with Python](https://selenium-python.readthedocs.io/)
+- [WebDriver Manager](https://github.com/SergeyPirogov/webdriver_manager)
