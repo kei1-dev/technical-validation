@@ -17,7 +17,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     TimeoutException,
@@ -262,6 +262,68 @@ class Browser(WebBrowser):
             logger.error(f"Click failed: {e}")
             return Result.failure(f"Click failed: {by}={value}", e)
 
+    def click_javascript(
+        self,
+        by: By,
+        value: str,
+        timeout: Optional[int] = None
+    ) -> Result[None]:
+        """
+        Click an element using JavaScript.
+
+        This method is useful when normal click fails due to element
+        being obscured by other elements or overlays.
+
+        Args:
+            by: By locator strategy
+            value: Locator value
+            timeout: Optional timeout in seconds
+
+        Returns:
+            Result indicating success or failure
+        """
+        if timeout is None:
+            timeout = self.config.timeout
+
+        try:
+            logger.debug(f"Clicking element with JavaScript: {by}={value}")
+
+            # Find element
+            element_result = self.find_element(by, value, timeout)
+            if element_result.is_failure:
+                return Result.failure(
+                    f"Cannot click: element not found",
+                    element_result.error
+                )
+
+            element = element_result.value
+
+            # Log element details for debugging
+            is_displayed = element.is_displayed()
+            is_enabled = element.is_enabled()
+            location = element.location
+            size = element.size
+            logger.info(f"Element details - displayed: {is_displayed}, enabled: {is_enabled}, location: {location}, size: {size}")
+
+            # Scroll element into view
+            logger.info("Scrolling element into view...")
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+
+            # Wait a moment for scroll to complete
+            import time
+            time.sleep(0.5)
+
+            # Click using JavaScript
+            logger.info("Executing JavaScript click...")
+            self.driver.execute_script("arguments[0].click();", element)
+
+            logger.info(f"Successfully clicked with JavaScript: {by}={value}")
+            return Result.success(None, f"Clicked (JS): {by}={value}")
+
+        except Exception as e:
+            logger.error(f"JavaScript click failed: {e}")
+            return Result.failure(f"JavaScript click failed: {by}={value}", e)
+
     def input_text(
         self,
         by: By,
@@ -301,6 +363,148 @@ class Browser(WebBrowser):
         except Exception as e:
             logger.error(f"Text input failed: {e}")
             return Result.failure(f"Text input failed: {by}={value}", e)
+
+    def set_value_javascript(
+        self,
+        by: By,
+        value: str,
+        text: str,
+        timeout: Optional[int] = None
+    ) -> Result[None]:
+        """
+        Set value of an input element using JavaScript.
+
+        This method is useful for readonly inputs like React DatePicker
+        where normal input methods don't work.
+
+        Args:
+            by: By locator strategy
+            value: Locator value
+            text: Text to set
+            timeout: Optional timeout in seconds
+
+        Returns:
+            Result indicating success or failure
+        """
+        if timeout is None:
+            timeout = self.config.timeout
+
+        try:
+            logger.debug(f"Setting value with JavaScript: {by}={value}")
+
+            # Find element
+            element_result = self.find_element(by, value, timeout)
+            if element_result.is_failure:
+                return Result.failure(
+                    f"Cannot set value: element not found",
+                    element_result.error
+                )
+
+            element = element_result.value
+
+            # Set value using React-friendly JavaScript sequence
+            # Use the native value setter so React's internal value tracker is updated
+            script = """
+                const element = arguments[0];
+                const value = arguments[1];
+                const lastValue = element.value;
+
+                const prototype = Object.getPrototypeOf(element);
+                const descriptor = Object.getOwnPropertyDescriptor(element, 'value')
+                    || Object.getOwnPropertyDescriptor(prototype, 'value');
+                if (!descriptor || typeof descriptor.set !== 'function') {
+                    throw new Error('Unable to locate native value setter');
+                }
+
+                descriptor.set.call(element, value);
+
+                const tracker = element._valueTracker;
+                if (tracker) {
+                    tracker.setValue(lastValue);
+                }
+
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            """
+
+            self.driver.execute_script(script, element, text)
+
+            logger.debug(f"Successfully set value with JavaScript: {by}={value}")
+            return Result.success(None, f"Set value (JS): {by}={value}")
+
+        except Exception as e:
+            logger.error(f"Set value (JS) failed: {e}")
+            return Result.failure(f"Set value (JS) failed: {by}={value}", e)
+
+    def select_dropdown(
+        self,
+        by: By,
+        value: str,
+        option_value: str,
+        timeout: Optional[int] = None
+    ) -> Result[None]:
+        """
+        Select an option from a dropdown (SELECT element) by value.
+
+        Args:
+            by: Locator strategy (e.g., By.CSS_SELECTOR, By.ID)
+            value: Locator value (e.g., selector, id)
+            option_value: Value attribute of the option to select
+            timeout: Wait timeout in seconds
+
+        Returns:
+            Result[None] indicating success or failure
+
+        Examples:
+            >>> # Select option with value="1"
+            >>> result = browser.select_dropdown(By.ID, "category", "1")
+            >>> if result.is_success:
+            ...     print("Option selected")
+        """
+        if timeout is None:
+            timeout = self.config.timeout
+
+        try:
+            logger.debug(f"Selecting dropdown option: {by}={value}, option_value={option_value}")
+
+            # Find SELECT element
+            element_result = self.find_element(by, value, timeout)
+            if element_result.is_failure:
+                return Result.failure(
+                    f"Cannot select dropdown: element not found",
+                    element_result.error
+                )
+
+            element = element_result.value
+
+            # Create Select object
+            select = Select(element)
+
+            # Select by value
+            select.select_by_value(option_value)
+
+            return Result.success(
+                None,
+                f"Selected dropdown option: {by}={value}, value={option_value}"
+            )
+
+        except NoSuchElementException as e:
+            logger.error(f"Dropdown option not found: value={option_value}")
+            return Result.failure(
+                f"Dropdown option not found: {by}={value}, value={option_value}",
+                e
+            )
+
+        except ElementNotInteractableException as e:
+            logger.error(f"Dropdown not interactable: {by}={value}")
+            return Result.failure(f"Dropdown not interactable: {by}={value}", e)
+
+        except Exception as e:
+            logger.error(f"Dropdown selection failed: {e}")
+            return Result.failure(
+                f"Dropdown selection failed: {by}={value}, value={option_value}",
+                e
+            )
 
     def get_page_source(self) -> Result[str]:
         """Get current page HTML source."""

@@ -61,14 +61,20 @@ class LessonSelectors:
 
 @dataclass(frozen=True)
 class InvoiceSelectors:
-    """Selectors for invoice submission page."""
+    """
+    Selectors for invoice submission page.
+
+    Note: These selectors are verified against the actual Terakoya claim page
+    as of 2025-11-01. The page uses styled-components (dynamic class names),
+    so we rely on stable attributes like id, name, and text content.
+    """
 
     # Navigation
-    invoice_link: str = "a[href*='invoice'], a:contains('請求')"
+    invoice_link: str = "a[href*='claim']"  # Changed from 'invoice' to 'claim'
     create_invoice_button: str = "button:contains('請求書作成'), .create-invoice, [data-action='create-invoice']"
 
-    # Invoice form
-    invoice_month: str = "select[name='invoice_month'], .invoice-month, [data-field='month']"
+    # Invoice form - month/year selector
+    invoice_month: str = "select[name='month']"  # Actual selector from claim page
     invoice_year: str = "select[name='invoice_year'], .invoice-year, [data-field='year']"
 
     # Invoice items list (existing invoices)
@@ -85,21 +91,64 @@ class InvoiceSelectors:
     item_total: str = "td.total, .item-total, [data-field='total']"
 
     # Add invoice item modal/form
-    add_item_button: str = "button:contains('追加'), .add-invoice-item, [data-action='add-item']"
-    modal: str = ".modal, .dialog, [role='dialog']"
-    modal_date_input: str = "input[name='date'], #invoice_date, [data-field='date']"
-    modal_student_id_input: str = "input[name='student_id'], #student_id, [data-field='student-id']"
-    modal_student_name_input: str = "input[name='student_name'], #student_name, [data-field='student-name']"
-    modal_category_input: str = "input[name='category'], #category, select[name='category']"
-    modal_duration_input: str = "input[name='duration'], #duration, [data-field='duration']"
-    modal_unit_price_input: str = "input[name='unit_price'], #unit_price, [data-field='unit-price']"
-    modal_save_button: str = "button:contains('保存'), button[type='submit'], .save-button"
-    modal_cancel_button: str = "button:contains('キャンセル'), .cancel-button, [data-action='cancel']"
-    modal_close_button: str = "button.close, .modal-close, [aria-label='Close']"
+    # IMPORTANT: Use XPath for button with exact text match (styled-components classes are dynamic)
+    add_item_button: str = "//button[text()='請求項目の追加']"
 
-    # Submit invoice
-    submit_button: str = "button:contains('送信'), .submit-invoice, [data-action='submit']"
-    confirm_button: str = "button:contains('確認'), .confirm-button, [data-action='confirm']"
+    # Modal selector - unreliable due to styled-components, but kept for compatibility
+    modal: str = ".modal, .dialog, [role='dialog']"
+
+    # Modal form fields (verified from actual HTML structure)
+    # Date field: React DatePicker input
+    modal_date_input: str = "input.datepicker-date"
+
+    # Category field: SELECT dropdown (requires select_dropdown method, not input_text!)
+    # Options: 専属レッスン (value=1), 専属レッスン前後対応 (value=2), etc.
+    modal_category_select: str = "select#category"
+
+    # Student field: SELECT dropdown
+    modal_student_select: str = "select#student"  # Student selection dropdown
+
+    # Alternative: Custom dropdown component (if select doesn't work)
+    # Structure: div.sc-eYHxxX > div.sc-eVrRMb with search input
+    modal_student_dropdown: str = "div.sc-eYHxxX"  # Dropdown wrapper
+    modal_student_dropdown_xpath: str = (
+        "//div[@class='sc-hSQXhq fCEnGE']//div[contains(@class,'sc-eYHxxX')]"
+    )
+    modal_student_dropdown_display: str = "div.sc-eVrRMb"  # Click target to open list
+    modal_student_dropdown_search_input: str = "input[placeholder='検索']"
+    modal_student_dropdown_options: str = "ul li"
+
+    # Dedicated lesson field: SELECT dropdown
+    modal_lesson_select: str = "select#lesson"
+    modal_lesson_select_xpath: str = (
+        "/html/body/div[1]/div[2]/div/div/div[2]/div/div[4]/select"
+    )
+
+    # Spot lesson field: SELECT dropdown
+    modal_spot_lesson_select: str = "select#spotLesson"
+
+    # Duration field: Number input (minutes)
+    modal_duration_input: str = "input#amount"
+
+    # Unit price field: Text input (yen per hour)
+    modal_unit_price_input: str = "input#unit_price"
+
+    # Additional fields (for different billing types)
+    modal_per_item_amount_input: str = "input#per_item_amount"
+    modal_per_item_unit_price_input: str = "input#per_item_unit_price"
+    modal_additional_payment_input: str = "input#additional_payment"
+    modal_chara_num_input: str = "input#chara_num"
+    modal_chara_unit_price_input: str = "input#chara_unit_price"
+    modal_remark_textarea: str = "textarea#remark"
+
+    # Modal buttons (use XPath for text-based selection due to dynamic classes)
+    modal_save_button: str = "//button[text()='追加']"  # "Add" button in modal footer
+    modal_cancel_button: str = "//button[text()='キャンセル']"
+    modal_close_button: str = "button.close, .modal-close, img[src*='close']"
+
+    # Submit invoice (monthly submission)
+    submit_button: str = "//button[text()='月次の請求を申請する']"  # Actual text from page
+    confirm_button: str = "//button[text()='請求申請の確定']"  # Confirmation modal button
 
     # Summary
     total_amount: str = ".total-amount, #invoice_total, [data-field='total']"

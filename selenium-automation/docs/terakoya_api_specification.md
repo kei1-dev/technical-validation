@@ -328,7 +328,7 @@ client.navigate_to_invoice_page(year=2025, month=10)
 
 ### 2.6 請求申請メソッド
 
-#### `add_invoice_item(lesson: Dict) -> InvoiceResult`
+#### `add_invoice_item(lesson: Dict, dry_run: bool = False) -> InvoiceResult`
 
 請求項目を1件追加します。
 
@@ -338,8 +338,10 @@ client.navigate_to_invoice_page(year=2025, month=10)
   - `student_name` (str): 受講生名
   - `student_id` (str): 受講生ID
   - `lesson_id` (str, optional): レッスンID
+  - `category` (str, optional): カテゴリ名（デフォルト: "専属レッスン"）
   - `duration` (int, optional): 時間（デフォルト: 60）
   - `unit_price` (int, optional): 単価（デフォルト: 2300）
+- `dry_run` (bool, optional): dry-runモード（デフォルト: False）
 
 **戻り値**:
 - `InvoiceResult`: 処理結果
@@ -349,36 +351,104 @@ client.navigate_to_invoice_page(year=2025, month=10)
 - `NoSuchElementException`: フォーム要素が見つからない
 
 **処理フロー**:
-1. 「請求項目の追加」ボタンをクリック
-2. モーダルが開くまで待機
-3. フィールドに入力:
-   - 日付: レッスン日を選択
-   - カテゴリー: "専属レッスン"を選択
-   - 受講生: ドロップダウンから選択
-   - 専属レッスン: レッスン一覧から選択
-   - 時間: 60
-   - 単価: 2300
-4. 入力内容を確認
-5. 「追加」ボタンをクリック
-6. モーダルが閉じるまで待機
-7. InvoiceResultを返却
+1. 「請求項目の追加」ボタンを**JavaScriptでクリック**（通常のclickでは動作しない）
+2. モーダルが開くまで待機（1.5秒）
+3. モーダル表示を確認
+4. **日付入力（React DatePicker対応）**:
+   - YYYY-MM-DD形式を YYYY年MM月DD日 形式に変換（例: 2025-10-15 → 2025年10月15日）
+   - 日付フィールドをクリック（フォーカス）
+   - `set_value_javascript()` でReact対応の値設定
+   - TABキーで blur イベント発火
+   - フォールバック: JavaScript失敗時は `send_keys()` で手動入力
+5. **カテゴリ選択（26種類対応）**:
+   - カテゴリ名を数値ID（1-26）にマッピング
+   - SELECT要素から対応するIDを選択
+   - 1秒待機（フォーム安定化）
+6. **受講生選択（カスタムReactドロップダウン対応）**:
+   - 標準SELECT要素の存在を先にチェック
+   - 標準SELECTが存在する場合: 通常の選択処理
+   - カスタムドロップダウンの場合:
+     - ドロップダウン表示要素をクリック
+     - 検索input（placeholder='検索'）に受講生名を入力
+     - ENTERキーで確定
+     - 一致するオプションを選択
+     - change イベントをディスパッチ
+7. **レッスン選択（API非同期読み込み待機）**:
+   - 最大12秒待機してオプションがAPI経由で読み込まれるのを待つ
+   - 待機条件: `len(Select(element).options) > 1`
+   - SELECT要素を再取得（DOMが更新されるため）
+   - 日付が一致するレッスンを選択
+8. **時間・単価入力**:
+   - JavaScript経由で値を設定
+9. **dry_runモードの場合**:
+   - スクリーンショット保存（`dry_run_form_filled_{timestamp}.png`）
+   - モーダルを開いたまま終了（手動確認可能）
+   - `InvoiceResult.SUCCESS` を返却（ただし、実際には送信していない）
+10. **通常モードの場合**:
+   - 「追加」ボタンをクリック
+   - モーダルが閉じるまで待機
+11. InvoiceResultを返却
+
+**サポートするカテゴリ（26種類）**:
+
+カテゴリ名から数値IDへのマッピング:
+- 専属レッスン → 1
+- 専属レッスン前後対応 → 2
+- 質問対応(担当生徒) → 3
+- カリキュラム作成 → 4
+- ポートフォリオ添削 → 5
+- チャット質問対応 → 6
+- 教材作成 → 7
+- 技術ブログ執筆 → 8
+- 勉強会開催 → 9
+- メンタリング → 10
+- その他業務 → 11
+- 初回レッスン → 12
+- 単発レッスン → 15
+- エキスパートコース → 16
+- 専属レッスンコンサル → 17
+- 勉強会登壇 → 18
+- イベント運営 → 19
+- 面談 → 20
+- チーム開発サポート → 21
+- 企業研修 → 22
+- インターン指導 → 23
+- コミュニティ運営 → 24
+- 広報活動 → 25
+- 公開講座対応 → 26
+
+**技術的詳細**:
+
+1. **React DatePicker**: 標準的な Selenium の `send_keys()` では値が反映されないため、JavaScriptで値を設定し、Reactのchangeイベントを手動でディスパッチします。
+
+2. **カスタムReactドロップダウン**: styled-componentsによる動的クラス名（`sc-eYHxxX`, `sc-eVrRMb`等）を使用したカスタムコンポーネントです。標準SELECTとの互換性のため、両方のパターンをサポートしています。
+
+3. **API非同期読み込み**: レッスンドロップダウンのオプションは受講生選択後にAPI経由で非同期に読み込まれます。明示的な待機が必要です。
+
+4. **dry-runモード**: フォーム入力の検証用。実際には送信せず、モーダルを開いたまま残すため、入力内容を目視確認できます。
 
 **使用例**:
 ```python
+# 通常モード
 lesson = {
     "date": "2025-10-15",
     "student_name": "山田太郎",
     "student_id": "student_789",
     "lesson_id": "lesson_12345",
+    "category": "専属レッスン",
     "duration": 60,
     "unit_price": 2300
 }
 
-result = client.add_invoice_item(lesson)
+result = client.add_invoice_item(lesson, dry_run=False)
 if result.status == InvoiceStatus.SUCCESS:
     print("追加成功")
 else:
     print(f"追加失敗: {result.error_message}")
+
+# dry-runモード（検証用）
+result = client.add_invoice_item(lesson, dry_run=True)
+# モーダルが開いたまま残るので、入力内容を確認できる
 ```
 
 #### `add_invoice_item_with_retry(lesson: Dict, max_retries: int = 3) -> InvoiceResult`
@@ -417,34 +487,7 @@ if result.screenshot_path:
     print(f"スクリーンショット: {result.screenshot_path}")
 ```
 
-#### `submit_invoice() -> bool`
-
-請求申請を送信します。
-
-**引数**:
-- なし
-
-**戻り値**:
-- `bool`: 送信成功時はTrue、失敗時はFalse
-
-**例外**:
-- `TimeoutException`: 送信処理タイムアウト
-- `NoSuchElementException`: 送信ボタンが見つからない
-
-**処理フロー**:
-1. 「申請を送信」ボタンを検索
-2. ボタンをクリック
-3. 確認ダイアログ処理（あれば）
-4. 送信完了を確認
-5. スクリーンショット保存
-
-**使用例**:
-```python
-if client.submit_invoice():
-    print("申請送信完了")
-else:
-    print("申請送信失敗")
-```
+**注意**: 請求書の送信機能は実装されていません。すべての請求項目を追加した後、Web画面から手動で送信してください。
 
 ### 2.7 ユーティリティメソッド
 

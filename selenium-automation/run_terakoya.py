@@ -5,21 +5,21 @@ Terakoya Invoice Automation Script.
 This script automates monthly invoice submission for Terakoya lessons.
 
 Usage:
-    python examples/terakoya_invoice.py --month 2025-10 --password PASSWORD [--dry-run] [--headless]
+    python run_terakoya.py --month 2025-10 --password PASSWORD [--dry-run] [--headless]
 
 Examples:
     # Submit invoice for October 2025
-    python examples/terakoya_invoice.py --month 2025-10 --password "your_password"
+    python run_terakoya.py --month 2025-10 --password "your_password"
 
     # Dry run (no actual submission)
-    python examples/terakoya_invoice.py --month 2025-10 --password "your_password" --dry-run
+    python run_terakoya.py --month 2025-10 --password "your_password" --dry-run
 
     # Run in headless mode
-    python examples/terakoya_invoice.py --month 2025-10 --password "your_password" --headless
+    python run_terakoya.py --month 2025-10 --password "your_password" --headless
 
     # Use password from environment variable
     export TERAKOYA_PASSWORD="your_password"
-    python examples/terakoya_invoice.py --month 2025-10
+    python run_terakoya.py --month 2025-10
 """
 
 import sys
@@ -28,9 +28,6 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import List
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.automation.browser import Browser
 from src.automation.browser_config import BrowserConfig
@@ -347,64 +344,40 @@ def main():
             added_lessons = []
             failed_lessons = []
 
-            if args.dry_run:
-                # Dry run: Display what would be added without making changes
-                print(f"\n[5/6] DRY RUN - Would add {len(to_add)} invoice items")
-                for idx, lesson in enumerate(to_add, 1):
-                    print(
-                        f"  [{idx}/{len(to_add)}] Would add: {lesson['date']} - "
-                        f"{lesson['student_name']} ({lesson['duration']}min)"
-                    )
-                added_lessons = to_add  # For reporting purposes
-                print(f"\n✓ Would add {len(added_lessons)} items (dry run)")
-            else:
-                # Normal mode: Actually add the items
-                print(f"\n[5/6] Adding {len(to_add)} invoice items...")
+            # Add items (dry run mode fills forms but doesn't save)
+            mode_label = "DRY RUN - Testing" if args.dry_run else "Adding"
+            print(f"\n[5/6] {mode_label} {len(to_add)} invoice items...")
 
-                for idx, lesson in enumerate(to_add, 1):
-                    print(f"  [{idx}/{len(to_add)}] Adding: {lesson['date']} - {lesson['student_name']}")
+            for idx, lesson in enumerate(to_add, 1):
+                action = "Testing" if args.dry_run else "Adding"
+                print(f"  [{idx}/{len(to_add)}] {action}: {lesson['date']} - {lesson['student_name']}")
 
-                    add_result = client.add_invoice_item_with_retry(
-                        lesson=lesson,
-                        unit_price=config.lesson_unit_price,
-                        max_retries=3
-                    )
+                add_result = client.add_invoice_item_with_retry(
+                    lesson=lesson,
+                    unit_price=config.lesson_unit_price,
+                    max_retries=3,
+                    dry_run=args.dry_run
+                )
 
-                    if add_result.is_success:
-                        added_lessons.append(lesson)
-                        print(f"      ✓ Added successfully")
-                    else:
-                        failed_lessons.append((lesson, add_result.message))
-                        print(f"      ✗ Failed: {add_result.message}")
-                        logger.error(f"Failed to add lesson: {add_result.message}")
+                if add_result.is_success:
+                    added_lessons.append(lesson)
+                    status = "✓ Form filled (not saved)" if args.dry_run else "✓ Added successfully"
+                    print(f"      {status}")
+                else:
+                    failed_lessons.append((lesson, add_result.message))
+                    print(f"      ✗ Failed: {add_result.message}")
+                    logger.error(f"Failed to add lesson: {add_result.message}")
 
-                print(f"\n✓ Added {len(added_lessons)} items")
-                if failed_lessons:
-                    print(f"✗ Failed to add {len(failed_lessons)} items")
+            summary = f"✓ Tested {len(added_lessons)} items (dry run)" if args.dry_run else f"✓ Added {len(added_lessons)} items"
+            print(f"\n{summary}")
+            if failed_lessons:
+                print(f"✗ Failed to process {len(failed_lessons)} items")
 
-            # Step 6: Submit invoice
+            # Step 6: Submission
             submitted = False
-
             if args.dry_run:
                 print("\n[6/6] DRY RUN - Skipping submission")
                 logger.info("Dry run mode, skipping submission")
-            else:
-                print(f"\n[6/6] Ready to submit invoice")
-
-                if confirm_submission():
-                    print("\nSubmitting invoice...")
-                    submit_result = client.submit_invoice()
-
-                    if submit_result.is_success:
-                        print("✓ Invoice submitted successfully!")
-                        logger.info("Invoice submitted successfully")
-                        submitted = True
-                    else:
-                        print(f"✗ Submission failed: {submit_result.message}")
-                        logger.error(f"Submission failed: {submit_result.message}")
-                else:
-                    print("\nSubmission cancelled by user")
-                    logger.info("Submission cancelled by user")
 
             # Save execution report
             save_execution_report(

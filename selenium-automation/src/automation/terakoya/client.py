@@ -8,12 +8,15 @@ invoice submission on the Terakoya platform.
 import logging
 import os
 import time
+import platform
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import StaleElementReferenceException
 
 from ..browser import Browser
 from .selectors import TerakoyaSelectors
@@ -84,6 +87,9 @@ class TerakoyaClient:
         self.base_url = base_url.rstrip('/')
         self.screenshot_dir = screenshot_dir or Path("output/terakoya_screenshots")
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
+
+        self.debug_dir = Path("output/terakoya_debug")
+        self.debug_dir.mkdir(parents=True, exist_ok=True)
 
         self.selectors = TerakoyaSelectors()
         self.session = SessionManager(browser)
@@ -596,9 +602,522 @@ class TerakoyaClient:
         """
         return self.browser.wait_for_page_load(timeout=timeout)
 
+    def _wait_for_lesson_options_loaded(self, timeout: int = 10) -> Result[None]:
+        """
+        Wait for lesson SELECT options to load from API after date selection.
+
+        Uses explicit wait to check for options beyond the default placeholder.
+
+        Args:
+            timeout: Maximum wait time in seconds (default: 10)
+
+        Returns:
+            Result[None]: Success if options loaded, Failure if timeout
+
+        Examples:
+            >>> wait_result = self._wait_for_lesson_options_loaded(timeout=10)
+            >>> if wait_result.is_success:
+            ...     # Options are loaded, can proceed to selection
+        """
+        from selenium.webdriver.support.ui import WebDriverWait, Select
+        from selenium.common.exceptions import TimeoutException
+
+        try:
+            logger.info("Waiting for lesson options to load from API...")
+
+            # Find lesson select element
+            lesson_select_result = self.browser.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_lesson_select,
+                timeout=timeout
+            )
+            if lesson_select_result.is_failure:
+                lesson_select_result = self.browser.find_element(
+                    By.XPATH,
+                    self.selectors.invoice.modal_lesson_select_xpath,
+                    timeout=timeout
+                )
+            if lesson_select_result.is_failure:
+                return Result.failure(
+                    "Lesson select element not found",
+                    lesson_select_result.error
+                )
+
+            select_element = lesson_select_result.value
+
+            # Wait until options are loaded (more than just default option)
+            wait = WebDriverWait(self.browser.driver, timeout)
+            wait.until(
+                lambda driver: len(Select(select_element).options) > 1,
+                message="Lesson options not loaded within timeout"
+            )
+
+            options_count = len(Select(select_element).options)
+            logger.info(f"Lesson options loaded successfully: {options_count} options")
+            return Result.success(None, f"Loaded {options_count} lesson options")
+
+        except TimeoutException as e:
+            logger.warning(f"Lesson options did not load within {timeout}s: {e}")
+            return Result.failure(f"Lesson options not loaded within {timeout}s", e)
+        except Exception as e:
+            logger.error(f"Failed to wait for lesson options: {e}", exc_info=True)
+            return Result.failure(f"Error waiting for lesson options: {e}", e)
+
+    def _wait_for_select_options(
+        self,
+        by: By,
+        locator: str,
+        description: str,
+        timeout: int = 10,
+        min_meaningful_options: int = 2
+    ) -> Result[None]:
+        """Generic helper to wait until a SELECT element has enough options."""
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.common.exceptions import TimeoutException
+
+        try:
+            logger.debug(
+                f"Waiting for {description} options (min {min_meaningful_options}) to be available..."
+            )
+
+            def options_loaded(driver) -> bool:
+                try:
+                    element = driver.find_element(by, locator)
+                    options = element.find_elements(By.TAG_NAME, "option")
+                    meaningful_options = [
+                        opt for opt in options
+                        if (opt.get_attribute("value") or opt.text or "").strip()
+                    ]
+                    logger.debug(
+                        f"{description} options check: total={len(options)}, meaningful={len(meaningful_options)}"
+                    )
+                    return len(meaningful_options) >= min_meaningful_options
+                except Exception:
+                    return False
+
+            wait = WebDriverWait(self.browser.driver, timeout)
+            wait.until(
+                options_loaded,
+                message=f"{description} options not loaded within {timeout}s"
+            )
+
+            logger.debug(f"{description} options loaded successfully")
+            return Result.success(None, f"{description} options ready")
+
+        except TimeoutException as e:
+            logger.warning(f"{description} options did not load within {timeout}s: {e}")
+            return Result.failure(f"{description} options not loaded within {timeout}s", e)
+        except Exception as e:
+            logger.error(f"Error waiting for {description} options: {e}", exc_info=True)
+            return Result.failure(
+                f"Error waiting for {description} options: {e}",
+                e
+            )
+
+    @staticmethod
+    def _normalize_student_label(label: Optional[str]) -> str:
+        """Normalize student names for comparison (remove whitespace)."""
+        if label is None:
+            return ""
+        return label.replace(" ", "").replace("\u3000", "").strip()
+
+    def _select_student_for_lesson(
+        self,
+        lesson: LessonData,
+        timeout: int = 10
+    ) -> Result[bool]:
+        """Select the student in the invoice modal if the field is present."""
+        student_selector = self.selectors.invoice.modal_student_select
+
+        student_field_result = self.browser.find_element(
+            By.CSS_SELECTOR,
+            student_selector,
+            timeout=3
+        )
+
+        if student_field_result.is_failure:
+            logger.debug(
+                "Student select element not present in modal; attempting custom dropdown handler"
+            )
+            return self._select_student_custom_dropdown(lesson, timeout)
+
+        wait_result = self._wait_for_select_options(
+            By.CSS_SELECTOR,
+            student_selector,
+            description="Student",
+            timeout=timeout,
+            min_meaningful_options=2
+        )
+
+        if wait_result.is_failure:
+            logger.debug(
+                "Standard student SELECT options did not load; attempting custom dropdown handler"
+            )
+            fallback_result = self._select_student_custom_dropdown(lesson, timeout)
+            if fallback_result.is_success:
+                return fallback_result
+            return Result.failure(
+                (wait_result.message or "Student options not loaded") +
+                f"; fallback: {fallback_result.message}",
+                fallback_result.error or wait_result.error
+            )
+
+        # Re-fetch select element to avoid stale references
+        student_field_result = self.browser.find_element(
+            By.CSS_SELECTOR,
+            student_selector,
+            timeout=3
+        )
+
+        if student_field_result.is_failure:
+            return Result.failure(
+                "Student select element disappeared after wait",
+                student_field_result.error
+            )
+
+        select_element = student_field_result.value
+
+        try:
+            from selenium.webdriver.support.ui import Select
+
+            select = Select(select_element)
+            options = select.options
+        except Exception as e:
+            logger.debug(f"Student field is not a standard SELECT element: {e}")
+            return self._select_student_custom_dropdown(lesson, timeout)
+
+        if len(options) <= 1:
+            fallback_result = self._select_student_custom_dropdown(lesson, timeout)
+            if fallback_result.is_success:
+                return fallback_result
+            return Result.failure(
+                "Student select only has default option after waiting"
+                + f"; fallback: {fallback_result.message}",
+                fallback_result.error
+            )
+
+        normalized_target = self._normalize_student_label(lesson.get("student_name"))
+        candidate_value: Optional[str] = None
+        candidate_visible_text: Optional[str] = None
+        fallback_value: Optional[str] = None
+        fallback_visible: Optional[str] = None
+
+        for option in options:
+            value = (option.get_attribute("value") or "").strip()
+            text = (option.text or "").strip()
+
+            if not value and not text:
+                continue
+
+            normalized_text = self._normalize_student_label(text)
+
+            if value and value == lesson.get("student_id"):
+                candidate_value = value
+                break
+
+            if normalized_target and normalized_text == normalized_target:
+                if value:
+                    candidate_value = value
+                else:
+                    candidate_visible_text = text
+                break
+
+            if fallback_value is None and value:
+                fallback_value = value
+                fallback_visible = text or value
+            elif fallback_visible is None and text:
+                fallback_visible = text
+
+        try:
+            selected_label: str
+
+            if candidate_value:
+                select.select_by_value(candidate_value)
+                selected_label = candidate_value
+            elif candidate_visible_text:
+                select.select_by_visible_text(candidate_visible_text)
+                selected_label = candidate_visible_text
+            elif fallback_value:
+                logger.warning(
+                    f"Student '{lesson['student_name']}' not matched; using fallback option '{fallback_visible}'"
+                )
+                select.select_by_value(fallback_value)
+                selected_label = fallback_visible or fallback_value
+            else:
+                return Result.failure("No suitable student option available for selection")
+
+            try:
+                self.browser.driver.execute_script(
+                    "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                    select_element
+                )
+            except Exception as event_error:
+                logger.debug(
+                    f"Failed to dispatch change event for student select: {event_error}"
+                )
+
+            return Result.success(True, f"Student option selected: {selected_label}")
+
+        except Exception as e:
+            return Result.failure(f"Failed to select student option: {e}", e)
+
+    def _select_student_custom_dropdown(
+        self,
+        lesson: LessonData,
+        timeout: int = 10
+    ) -> Result[bool]:
+        """
+        Handle custom React-style dropdowns for student selection.
+        """
+        dropdown_container_result = self.browser.find_element(
+            By.CSS_SELECTOR,
+            self.selectors.invoice.modal_student_dropdown,
+            timeout=3
+        )
+
+        if dropdown_container_result.is_failure:
+            dropdown_container_result = self.browser.find_element(
+                By.XPATH,
+                self.selectors.invoice.modal_student_dropdown_xpath,
+                timeout=3
+            )
+
+        if dropdown_container_result.is_failure:
+            logger.debug("Student dropdown container not detected; skipping selection")
+            self._save_modal_html_snapshot("student_dropdown_missing")
+            return Result.success(False, "Student dropdown container not present")
+
+        dropdown_container = dropdown_container_result.value
+
+        try:
+            self.browser.driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center'});",
+                dropdown_container
+            )
+        except Exception as scroll_error:
+            logger.debug(f"Failed to scroll student dropdown into view: {scroll_error}")
+
+        try:
+            display_element = dropdown_container.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown_display
+            )
+        except Exception:
+            try:
+                display_element = dropdown_container.find_element(
+                    By.XPATH,
+                    ".//div[contains(@class,'sc-eVrRMb')]"
+                )
+            except Exception as e:
+                self._save_modal_html_snapshot("student_dropdown_display_missing")
+                return Result.failure("Student dropdown display element not found", e)
+
+        try:
+            display_element.click()
+        except Exception as click_error:
+            try:
+                self.browser.driver.execute_script(
+                    "arguments[0].click();",
+                    display_element
+                )
+            except Exception as js_click_error:
+                message = (
+                    f"Failed to open student dropdown: {click_error}; "
+                    f"JS click error: {js_click_error}"
+                )
+                self._save_modal_html_snapshot("student_dropdown_click_failed")
+                return Result.failure(message, js_click_error)
+
+        time.sleep(0.2)
+
+        try:
+            search_input = dropdown_container.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown_search_input
+            )
+        except Exception:
+            try:
+                search_input = dropdown_container.find_element(
+                    By.XPATH,
+                    ".//input[@placeholder='検索']"
+                )
+            except Exception as e:
+                self._save_modal_html_snapshot("student_dropdown_input_missing")
+                return Result.failure("Student dropdown search input not found", e)
+
+        try:
+            search_input.clear()
+        except Exception:
+            pass
+
+        search_query = lesson.get("student_name", "") or lesson.get("student_id", "")
+        if not search_query:
+            logger.debug("Lesson data missing student name/id; cannot search dropdown")
+            self._save_modal_html_snapshot("student_dropdown_no_query")
+            return Result.failure("Lesson missing student name for dropdown search")
+
+        from selenium.webdriver.common.keys import Keys
+
+        search_input.send_keys(search_query)
+        time.sleep(0.2)
+        search_input.send_keys(Keys.ENTER)
+
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.common.exceptions import TimeoutException
+
+        driver = self.browser.driver
+
+        def _options_ready() -> bool:
+            try:
+                options = dropdown_container.find_elements(
+                    By.CSS_SELECTOR,
+                    self.selectors.invoice.modal_student_dropdown_options
+                )
+                for option in options:
+                    try:
+                        text = option.text or option.get_attribute("innerText") or ""
+                        if text.strip():
+                            return True
+                    except StaleElementReferenceException:
+                        return False
+                return False
+            except StaleElementReferenceException:
+                return False
+
+        try:
+            WebDriverWait(driver, timeout).until(lambda _: _options_ready())
+        except TimeoutException as e:
+            self._save_modal_html_snapshot("student_dropdown_no_options")
+            return Result.failure("Student dropdown options not available", e)
+
+        try:
+            options = dropdown_container.find_elements(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown_options
+            )
+        except StaleElementReferenceException:
+            dropdown_container_result = self.browser.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown,
+                timeout=2
+            )
+            if dropdown_container_result.is_failure:
+                dropdown_container_result = self.browser.find_element(
+                    By.XPATH,
+                    self.selectors.invoice.modal_student_dropdown_xpath,
+                    timeout=2
+                )
+            if dropdown_container_result.is_failure:
+                self._save_modal_html_snapshot("student_dropdown_container_stale")
+                return Result.failure("Student dropdown container became stale")
+            dropdown_container = dropdown_container_result.value
+            options = dropdown_container.find_elements(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown_options
+            )
+
+        if not options:
+            self._save_modal_html_snapshot("student_dropdown_no_options")
+            return Result.failure("Student dropdown has no selectable options")
+
+        normalized_target = self._normalize_student_label(lesson.get("student_name"))
+        candidate_option = None
+        fallback_option = None
+
+        for option in options:
+            option_text = (option.text or option.get_attribute("innerText") or "").strip()
+            normalized_text = self._normalize_student_label(option_text)
+
+            if normalized_target and normalized_text == normalized_target:
+                candidate_option = option
+                break
+
+            if normalized_target and normalized_target in normalized_text:
+                candidate_option = option
+                break
+
+            if fallback_option is None:
+                fallback_option = option
+
+        target_option = candidate_option or fallback_option
+
+        if target_option is None:
+            self._save_modal_html_snapshot("student_dropdown_no_match")
+            return Result.failure("No matching student option found in dropdown")
+
+        try:
+            target_option.click()
+        except Exception as click_error:
+            try:
+                self.browser.driver.execute_script(
+                    "arguments[0].click();",
+                    target_option
+                )
+            except Exception as js_click_error:
+                message = (
+                    f"Failed to select student option via click: {click_error}; "
+                    f"JS click error: {js_click_error}"
+                )
+                self._save_modal_html_snapshot("student_dropdown_click_failed")
+                return Result.failure(message, js_click_error)
+
+        try:
+            search_input.send_keys(Keys.TAB)
+        except Exception:
+            pass
+
+        time.sleep(0.2)
+
+        try:
+            display_after = dropdown_container.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_student_dropdown_display
+            )
+            displayed_text = self._normalize_student_label(display_after.text)
+            if normalized_target and displayed_text and normalized_target != displayed_text:
+                logger.debug(
+                    "Student dropdown displayed text does not match target: "
+                    f"target='{normalized_target}', displayed='{displayed_text}'"
+                )
+                self._save_modal_html_snapshot("student_dropdown_mismatch")
+        except Exception as e:
+            logger.debug(f"Unable to confirm student dropdown selection: {e}")
+
+        try:
+            self.browser.driver.execute_script(
+                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                dropdown_container
+            )
+        except Exception:
+            pass
+
+        return Result.success(True, "Student option selected via custom dropdown")
+
+    def _save_modal_html_snapshot(self, tag: str) -> None:
+        """Capture current page source for debugging modal state."""
+        try:
+            source_result = self.browser.get_page_source()
+            if source_result.is_failure or not source_result.value:
+                logger.debug(
+                    f"Skipping modal HTML snapshot (page source unavailable): {source_result.message}"
+                )
+                return
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"modal_{tag}_{timestamp}.html"
+            filepath = self.debug_dir / filename
+            filepath.write_text(source_result.value, encoding="utf-8")
+            logger.info(f"Saved modal HTML snapshot: {filepath}")
+
+        except Exception as e:
+            logger.debug(f"Failed to save modal HTML snapshot ({tag}): {e}")
+
     def _wait_for_modal_visible(self, timeout: int = 5) -> Result[None]:
         """
         Wait for modal dialog to appear.
+
+        Instead of checking for the modal container (which has dynamic classes),
+        we check for the presence of modal-specific form fields.
 
         Args:
             timeout: Maximum wait time in seconds
@@ -606,16 +1125,29 @@ class TerakoyaClient:
         Returns:
             Result[None] indicating success
         """
-        modal_result = self.browser.find_element(
+        # Check for date input field (only visible when modal is open)
+        date_field_result = self.browser.find_element(
             By.CSS_SELECTOR,
-            self.selectors.invoice.modal,
+            self.selectors.invoice.modal_date_input,
             timeout=timeout
         )
 
-        if modal_result.is_success:
+        if date_field_result.is_success:
+            logger.debug("Modal detected via date input field")
             return Result.success(None, "Modal visible")
-        else:
-            return Result.failure("Modal not visible", modal_result.error)
+
+        # Fallback: check for category select (alternative modal indicator)
+        category_field_result = self.browser.find_element(
+            By.CSS_SELECTOR,
+            self.selectors.invoice.modal_category_select,
+            timeout=1
+        )
+
+        if category_field_result.is_success:
+            logger.debug("Modal detected via category select field")
+            return Result.success(None, "Modal visible")
+
+        return Result.failure("Modal not visible (form fields not found)")
 
     def _input_field(
         self,
@@ -1148,8 +1680,8 @@ class TerakoyaClient:
 
             logger.info(f"Navigating to invoice page for {year}-{month:02d}")
 
-            # Navigate to invoice page
-            invoice_url = f"{self.base_url}/invoices"
+            # Navigate to invoice page (claim submission page)
+            invoice_url = f"{self.base_url}/claim"
             nav_result = self.browser.navigate(invoice_url)
             if nav_result.is_failure:
                 return Result.failure(
@@ -1160,7 +1692,25 @@ class TerakoyaClient:
             # Wait for page load
             time.sleep(2)
 
-            # TODO: Select year/month if filters are available
+            # Select year/month if filter is available
+            month_selector = self.selectors.invoice.invoice_month
+            month_value = f"{year}/{month:02d}"  # Format: "2025/10"
+
+            logger.info(f"Attempting to select month: {month_value}")
+            select_result = self.browser.select_dropdown(
+                By.CSS_SELECTOR,
+                month_selector,
+                month_value,
+                timeout=5
+            )
+
+            if select_result.is_success:
+                logger.info(f"Successfully selected month: {month_value}")
+                # Wait for page to update after month selection
+                time.sleep(2)
+            else:
+                logger.warning(f"Failed to select month dropdown: {select_result.message}")
+                # Continue anyway - the dropdown might not exist or month might already be selected
 
             logger.info("Successfully navigated to invoice page")
             return Result.success(None, "Navigation successful")
@@ -1256,7 +1806,8 @@ class TerakoyaClient:
     def add_invoice_item(
         self,
         lesson: LessonData,
-        unit_price: int = 2300
+        unit_price: int = 2300,
+        dry_run: bool = False
     ) -> Result[None]:
         """
         Add a single invoice item.
@@ -1264,14 +1815,17 @@ class TerakoyaClient:
         Args:
             lesson: Lesson data to add as invoice item
             unit_price: Unit price per hour (default: 2300 yen)
+            dry_run: If True, fill form but don't submit (default: False)
 
         Returns:
             Result[None] indicating success
 
         Examples:
-            >>> result = client.add_invoice_item(lesson, unit_price=2300)
-            >>> if result.is_success:
-            ...     print("Invoice item added")
+            >>> # Dry-run mode (fill form only)
+            >>> result = client.add_invoice_item(lesson, unit_price=2300, dry_run=True)
+            >>>
+            >>> # Normal mode (fill and submit)
+            >>> result = client.add_invoice_item(lesson, unit_price=2300, dry_run=False)
         """
         try:
             logger.info(
@@ -1283,20 +1837,29 @@ class TerakoyaClient:
             if not validation.is_valid:
                 return Result.failure(f"Invalid lesson data: {validation.get_summary()}")
 
-            # Click "Add Item" button
-            add_result = self.browser.click(
-                By.CSS_SELECTOR,
+            # Click "Add Item" button to open modal
+            logger.debug(f"Clicking 'Add Item' button: {self.selectors.invoice.add_item_button}")
+            time.sleep(0.5)  # Ensure page is stable
+
+            add_result = self.browser.click_javascript(
+                By.XPATH,
                 self.selectors.invoice.add_item_button,
                 timeout=10
             )
+
             if add_result.is_failure:
+                logger.error(f"Failed to click add item button: {add_result.message}")
                 self._save_screenshot("add_item_button_failed")
                 return Result.failure(
                     "Failed to click add item button",
                     add_result.error
                 )
 
-            # Wait for modal to appear
+            # Wait for modal to appear and become fully interactive
+            logger.debug("Waiting for modal to appear...")
+            time.sleep(1.5)  # Increased wait for modal animation
+
+            # Verify modal appeared
             modal_wait_result = self._wait_for_modal_visible(timeout=5)
             if modal_wait_result.is_failure:
                 self._save_screenshot("modal_not_visible")
@@ -1305,91 +1868,458 @@ class TerakoyaClient:
                     modal_wait_result.error
                 )
 
-            # Fill in form fields using standardized helper
-            # Date (REQUIRED)
-            date_result = self._input_field(
-                self.selectors.invoice.modal_date_input,
-                lesson["date"],
-                "date",
-                FieldImportance.REQUIRED
-            )
-            if date_result.is_failure:
-                return date_result
+            # Fill in form fields
+            auto_date_mode = self._category_uses_auto_date(lesson.get("category", ""))
 
-            # Student ID (OPTIONAL - may not be visible on all forms)
-            student_id_result = self._input_field(
-                self.selectors.invoice.modal_student_id_input,
-                lesson["student_id"],
-                "student_id",
-                FieldImportance.OPTIONAL
-            )
+            if auto_date_mode:
+                logger.info(
+                    "Skipping manual date input because dedicated lesson selection populates the date"
+                )
+            else:
+                # Date (REQUIRED) - React DatePicker input
+                # Primary strategy dispatches React-compatible events via JavaScript
+                # Convert date format from YYYY-MM-DD to YYYY年MM月DD日
+                from datetime import datetime
+                date_obj = datetime.strptime(lesson["date"], "%Y-%m-%d")
+                date_formatted = date_obj.strftime("%Y年%m月%d日")  # e.g., "2025年10月01日"
+                logger.info(f"Preparing date input value: {date_formatted}")
 
-            # Student Name (REQUIRED)
-            name_result = self._input_field(
-                self.selectors.invoice.modal_student_name_input,
-                lesson["student_name"],
-                "student_name",
-                FieldImportance.REQUIRED
-            )
-            if name_result.is_failure:
-                return name_result
+                # Find date input field
+                date_elem_result = self.browser.find_element(
+                    By.CSS_SELECTOR,
+                    self.selectors.invoice.modal_date_input,
+                    timeout=5
+                )
+                if date_elem_result.is_failure:
+                    self._save_screenshot("date_field_not_found")
+                    return Result.failure(
+                        f"Date field not found: {date_elem_result.message}",
+                        date_elem_result.error
+                    )
 
-            # Category (OPTIONAL - may be auto-filled)
-            category_result = self._input_field(
-                self.selectors.invoice.modal_category_input,
-                lesson["category"],
-                "category",
-                FieldImportance.OPTIONAL
-            )
+                date_element = date_elem_result.value
 
-            # Duration (REQUIRED)
-            duration_result = self._input_field(
-                self.selectors.invoice.modal_duration_input,
-                str(lesson["duration"]),
-                "duration",
-                FieldImportance.REQUIRED
-            )
-            if duration_result.is_failure:
-                return duration_result
+                # Focus the field before injecting the value so React DatePicker is ready
+                try:
+                    date_element.click()
+                except Exception as click_error:
+                    logger.debug(f"Failed to click date field directly: {click_error}")
+                    try:
+                        self.browser.driver.execute_script(
+                            "arguments[0].scrollIntoView({block: 'center'});",
+                            date_element
+                        )
+                        self.browser.driver.execute_script("arguments[0].click();", date_element)
+                    except Exception as js_click_error:
+                        logger.debug(f"JavaScript click on date field also failed: {js_click_error}")
 
-            # Unit Price (REQUIRED)
-            price_result = self._input_field(
-                self.selectors.invoice.modal_unit_price_input,
-                str(unit_price),
-                "unit_price",
-                FieldImportance.REQUIRED
-            )
-            if price_result.is_failure:
-                return price_result
+                time.sleep(0.2)
 
-            # Click Save
-            save_result = self.browser.click(
+                # Primary approach: use JavaScript value setter compatible with React inputs
+                logger.info(f"Setting date via JavaScript dispatcher: {date_formatted}")
+                set_date_result = self.browser.set_value_javascript(
+                    By.CSS_SELECTOR,
+                    self.selectors.invoice.modal_date_input,
+                    date_formatted,
+                    timeout=5
+                )
+
+                if set_date_result.is_failure:
+                    logger.warning(
+                        f"JavaScript date injection failed ({set_date_result.message}); falling back to send_keys"
+                    )
+                    try:
+                        # Fallback to manual typing to avoid hard failure
+                        time.sleep(0.2)
+                        try:
+                            date_element.clear()
+                        except Exception:
+                            is_mac = platform.system() == "Darwin"
+                            keys = Keys.COMMAND if is_mac else Keys.CONTROL
+                            date_element.send_keys(keys + "a")
+                            date_element.send_keys(Keys.DELETE)
+
+                        time.sleep(0.1)
+                        date_element.send_keys(date_formatted)
+                        date_element.send_keys(Keys.TAB)
+                    except Exception as fallback_error:
+                        self._save_screenshot("date_input_failed")
+                        return Result.failure(
+                            f"Failed to set date field via all strategies: {fallback_error}",
+                            fallback_error
+                        )
+                else:
+                    logger.debug(set_date_result.message)
+                    # Trigger blur to align with user behaviour and any validation hooks
+                    try:
+                        date_element.send_keys(Keys.TAB)
+                    except Exception as tab_error:
+                        logger.debug(f"TAB send failed after JS date input: {tab_error}")
+                        try:
+                            self.browser.driver.execute_script(
+                                "arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));",
+                                date_element
+                            )
+                        except Exception as blur_error:
+                            logger.debug(f"Failed to dispatch blur event: {blur_error}")
+
+            # Verify modal is still open after date processing/input
+            modal_check = self.browser.find_element(
                 By.CSS_SELECTOR,
-                self.selectors.invoice.modal_save_button,
+                self.selectors.invoice.modal_category_select,
+                timeout=3
+            )
+            if modal_check.is_failure:
+                self._save_screenshot("modal_closed_after_date")
+                return Result.failure("Modal closed unexpectedly after date input")
+
+            # Category (REQUIRED) - SELECT dropdown
+            # Map lesson category to dropdown value
+            logger.info(f"Selecting category: {lesson['category']}")
+            category_value = self._map_category_to_value(lesson["category"])
+            logger.info(f"Category mapped to value: {category_value}")
+
+            # First verify the select element exists and get its options
+            category_elem_result = self.browser.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_category_select,
                 timeout=5
             )
-            if save_result.is_failure:
-                self._save_screenshot("modal_save_failed")
-                return Result.failure("Failed to click save", save_result.error)
+            if category_elem_result.is_failure:
+                self._save_screenshot("category_element_not_found")
+                return Result.failure(
+                    f"Category select element not found",
+                    category_elem_result.error
+                )
 
-            # Wait for modal to close
-            close_wait_result = self._wait_for_modal_closed(timeout=5)
-            if close_wait_result.is_failure:
-                logger.warning(f"Modal close wait failed: {close_wait_result.message}")
+            # Log available options for debugging
+            try:
+                from selenium.webdriver.support.ui import Select
+                select_elem = Select(category_elem_result.value)
+                available_options = [opt.get_attribute("value") for opt in select_elem.options]
+                logger.info(f"Available category options: {available_options[:10]}")  # First 10
+            except Exception as e:
+                logger.warning(f"Failed to get category options: {e}")
 
-            logger.info("Invoice item added successfully")
-            return Result.success(None, "Invoice item added")
+            # Now select the category
+            category_result = self.browser.select_dropdown(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_category_select,
+                category_value,
+                timeout=5
+            )
+            if category_result.is_failure:
+                self._save_screenshot("category_select_failed")
+                return Result.failure(
+                    f"Failed to select category '{lesson['category']}' (value: {category_value})",
+                    category_result.error
+                )
+
+            logger.info(f"Category selected successfully: {category_value}")
+
+            # Wait for form to stabilize after category selection
+            # Category selection may trigger JavaScript validation that affects other fields
+            logger.info("Waiting for form to stabilize after category selection...")
+            time.sleep(1)
+
+            # Student (OPTIONAL) - Attempt selection to trigger lesson options for dedicated categories
+            student_select_result = self._select_student_for_lesson(lesson)
+            if student_select_result.is_success:
+                if student_select_result.value:
+                    logger.info(
+                        student_select_result.message or "Student option selection completed"
+                    )
+                else:
+                    logger.debug(
+                        student_select_result.message or "Student selection not required"
+                    )
+            else:
+                logger.warning(
+                    f"Student selection may not have completed: {student_select_result.message}"
+                )
+
+            # After student selection (if any), wait for lesson options to load
+            lesson_select_probe = self.browser.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_lesson_select,
+                timeout=3
+            )
+            if lesson_select_probe.is_failure:
+                lesson_select_probe = self.browser.find_element(
+                    By.XPATH,
+                    self.selectors.invoice.modal_lesson_select_xpath,
+                    timeout=3
+                )
+            if lesson_select_probe.is_success:
+                logger.info("Waiting for lesson options to load after student selection...")
+                wait_result = self._wait_for_lesson_options_loaded(timeout=12)
+                if wait_result.is_failure:
+                    logger.warning(f"Lesson options may not have loaded: {wait_result.message}")
+            else:
+                logger.debug("Lesson select field not present; skipping lesson option wait")
+
+            # Dedicated Lesson (REQUIRED for 専属レッスン category) - SELECT dropdown
+            # After date is set, the lesson options should be loaded
+            logger.info(f"Checking for lesson options after date selection...")
+
+            # Verify lesson select has options
+            lesson_select_result = self.browser.find_element(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_lesson_select,
+                timeout=5
+            )
+            if lesson_select_result.is_failure:
+                lesson_select_result = self.browser.find_element(
+                    By.XPATH,
+                    self.selectors.invoice.modal_lesson_select_xpath,
+                    timeout=5
+                )
+
+            if lesson_select_result.is_success:
+                from selenium.webdriver.support.ui import Select
+                try:
+                    # Re-fetch select element to ensure latest options after waits
+                    lesson_select_refresh = self.browser.find_element(
+                        By.CSS_SELECTOR,
+                        self.selectors.invoice.modal_lesson_select,
+                        timeout=3
+                    )
+                    if lesson_select_refresh.is_failure:
+                        lesson_select_refresh = self.browser.find_element(
+                            By.XPATH,
+                            self.selectors.invoice.modal_lesson_select_xpath,
+                            timeout=3
+                        )
+                    target_select_element = (
+                        lesson_select_refresh.value
+                        if lesson_select_refresh.is_success
+                        else lesson_select_result.value
+                    )
+                    select_elem = Select(target_select_element)
+                    option_values_preview = [
+                        opt.get_attribute("value") for opt in select_elem.options[:5]
+                    ]
+                    logger.info(
+                        f"Lesson select has {len(select_elem.options)} options: {option_values_preview}"
+                    )
+
+                    chosen_option = self._pick_lesson_option(select_elem, lesson)
+
+                    if chosen_option is not None:
+                        chosen_value = chosen_option.get_attribute("value")
+                        chosen_label = (chosen_option.text or "").strip()
+                        logger.info(
+                            f"Selecting lesson option value={chosen_value} label='{chosen_label}'"
+                        )
+
+                        try:
+                            select_elem.select_by_value(chosen_value)
+                            self.browser.driver.execute_script(
+                                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                                target_select_element
+                            )
+                            logger.info("Lesson selected successfully")
+                        except Exception as select_error:
+                            logger.warning(
+                                f"Failed to select lesson option {chosen_value}: {select_error}"
+                            )
+                    else:
+                        logger.warning(
+                            "No dedicated lesson option matched the lesson date; leaving default"
+                        )
+
+                except Exception as e:
+                    logger.warning(f"Failed to process lesson options: {e}")
+
+            # Duration (REQUIRED) - Number input in minutes
+            # Use JavaScript to set value (similar to date field) to avoid interactability issues
+            logger.info(f"Setting duration field to: {lesson['duration']}")
+            duration_result = self.browser.set_value_javascript(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_duration_input,
+                str(lesson["duration"]),
+                timeout=5
+            )
+            if duration_result.is_failure:
+                self._save_screenshot("duration_input_failed")
+                return Result.failure(
+                    f"Failed to set duration field: {duration_result.message}",
+                    duration_result.error
+                )
+
+            # Unit Price (REQUIRED) - Text input (yen per hour)
+            # Use JavaScript to set value for consistency
+            logger.info(f"Setting unit price field to: {unit_price}")
+            price_result = self.browser.set_value_javascript(
+                By.CSS_SELECTOR,
+                self.selectors.invoice.modal_unit_price_input,
+                str(unit_price),
+                timeout=5
+            )
+            if price_result.is_failure:
+                self._save_screenshot("unit_price_input_failed")
+                return Result.failure(
+                    f"Failed to set unit price field: {price_result.message}",
+                    price_result.error
+                )
+
+            # Handle dry-run vs normal mode
+            if dry_run:
+                # Dry-run mode: Leave modal open for inspection
+                logger.info("Dry-run mode: Form filled, leaving modal open for inspection")
+                logger.info("⚠️  Modal will remain open - check form values manually")
+
+                # Take screenshot of filled form
+                self._save_screenshot("dry_run_form_filled")
+
+                logger.info("Invoice item form filled successfully (dry-run mode - not submitted)")
+                return Result.success(None, "Invoice item form filled (not submitted)")
+            else:
+                # Normal mode: Click save button to submit
+                logger.info("Normal mode: Saving invoice item")
+                save_result = self.browser.click(
+                    By.XPATH,
+                    self.selectors.invoice.modal_save_button,
+                    timeout=5
+                )
+                if save_result.is_failure:
+                    self._save_screenshot("modal_save_failed")
+                    return Result.failure("Failed to click save button", save_result.error)
+
+                # Wait for modal to close
+                close_wait_result = self._wait_for_modal_closed(timeout=5)
+                if close_wait_result.is_failure:
+                    logger.warning(f"Modal close wait failed: {close_wait_result.message}")
+
+                logger.info("Invoice item saved successfully")
+                return Result.success(None, "Invoice item saved")
 
         except Exception as e:
             logger.error(f"Failed to add invoice item: {e}", exc_info=True)
             self._save_screenshot("add_item_exception")
             return Result.failure(f"Exception adding invoice item: {e}", e)
 
+    def _map_category_to_value(self, category: str) -> str:
+        """
+        Map lesson category to invoice form dropdown value.
+
+        The invoice form has a category dropdown with specific values:
+        - 1: 専属レッスン (Dedicated Lesson)
+        - 2: 専属レッスン前後対応
+        - 15: 単発レッスン (Spot Lesson)
+        - etc.
+
+        Args:
+            category: Lesson category from lesson data
+
+        Returns:
+            Dropdown value (string number like "1", "2", etc.)
+        """
+        # Category mapping based on actual dropdown options
+        category_map = {
+            "専属レッスン": "1",
+            "専属レッスン前後対応": "2",
+            "質問対応(担当生徒)": "3",
+            "カリキュラム作成": "4",
+            "専属レッスンキャンセル": "5",
+            "キャッチアップ": "6",
+            "コンサル相談": "7",
+            "メンタリング": "8",
+            "質問対応(Q&A)": "9",
+            "運営側依頼対応": "10",
+            "書籍(教材)費用": "11",
+            "リファラルインセンティブ": "12",
+            "その他": "13",
+            "教材開発": "14",
+            "単発レッスン": "15",
+            "タイムライン投稿": "16",
+            "課題レビュー時給制": "17",
+            "リスキルカレッジ対応": "18",
+            "シゴトル対応": "19",
+            "課題レビュー単価制": "20",
+            "法人側依頼対応": "21",
+            "道場レッスン": "22",
+            "常駐レッスン対応": "23",
+            "道場コンテンツ開発": "24",
+            "転職コミュニティ対応": "25",
+            "公開講座対応": "26",
+        }
+
+        # Try exact match first
+        if category in category_map:
+            return category_map[category]
+
+        # Try partial match (e.g., "専属" in "専属レッスン")
+        for key, value in category_map.items():
+            if category in key or key in category:
+                logger.debug(f"Partial category match: '{category}' -> '{key}' (value: {value})")
+                return value
+
+        # Default to "専属レッスン" (value 1) if no match
+        logger.warning(
+            f"Unknown category '{category}', defaulting to '専属レッスン' (value: 1)"
+        )
+        return "1"
+
+    @staticmethod
+    def _category_uses_auto_date(category: str) -> bool:
+        """Return True if the category auto-populates the date when lesson is selected."""
+        if not category:
+            return False
+
+        auto_categories = {
+            "専属レッスン",
+            "専属レッスン前後対応",
+        }
+
+        return any(key in category for key in auto_categories)
+
+    @staticmethod
+    def _pick_lesson_option(
+        select_elem: "Select",
+        lesson: LessonData
+    ) -> Optional["WebElement"]:
+        """Pick the most suitable dedicated-lesson option for the given lesson."""
+        from datetime import datetime
+
+        try:
+            target_date = datetime.strptime(lesson["date"], "%Y-%m-%d")
+        except Exception:
+            target_date = None
+
+        target_date_full = target_date.strftime("%Y/%m/%d") if target_date else None
+        target_date_short = target_date.strftime("%m/%d") if target_date else None
+
+        options = [opt for opt in select_elem.options if (opt.get_attribute("value") or "").strip()]
+        if not options:
+            return None
+
+        # Skip first option if it's the placeholder
+        filtered_options = [opt for opt in options if "選択してください" not in (opt.text or "")]
+        if filtered_options:
+            options = filtered_options
+
+        def matches_date(option_text: str) -> bool:
+            if target_date_full and target_date_full in option_text:
+                return True
+            if target_date_short and target_date_short in option_text:
+                return True
+            return False
+
+        for option in options:
+            text = (option.text or option.get_attribute("innerText") or "").strip()
+            if text and matches_date(text):
+                return option
+
+        # Fallback: return first meaningful option
+        return options[0]
+
     def add_invoice_item_with_retry(
         self,
         lesson: LessonData,
         unit_price: int = 2300,
-        max_retries: int = 3
+        max_retries: int = 3,
+        dry_run: bool = False
     ) -> Result[None]:
         """
         Add invoice item with retry logic.
@@ -1401,11 +2331,16 @@ class TerakoyaClient:
             lesson: Lesson data
             unit_price: Unit price per hour
             max_retries: Maximum retry attempts
+            dry_run: If True, fill form but don't submit (default: False)
 
         Returns:
             Result[None] indicating success
 
         Examples:
+            >>> # Dry-run mode
+            >>> result = client.add_invoice_item_with_retry(lesson, dry_run=True)
+            >>>
+            >>> # Normal mode with retries
             >>> result = client.add_invoice_item_with_retry(lesson, max_retries=3)
         """
         last_error = None
@@ -1418,7 +2353,7 @@ class TerakoyaClient:
                 )
 
                 # Direct call without circuit breaker (already applied at client level)
-                result = self.add_invoice_item(lesson, unit_price)
+                result = self.add_invoice_item(lesson, unit_price, dry_run=dry_run)
 
                 if result.is_success:
                     return result
@@ -1444,69 +2379,3 @@ class TerakoyaClient:
         return Result.failure(
             f"Failed after {max_retries} attempts. Last error: {last_error}"
         )
-
-    def submit_invoice(self) -> Result[None]:
-        """
-        Submit the invoice.
-
-        Returns:
-            Result[None] indicating success
-
-        Examples:
-            >>> result = client.submit_invoice()
-            >>> if result.is_success:
-            ...     print("Invoice submitted successfully")
-        """
-        try:
-            logger.info("Submitting invoice")
-
-            # Click submit button
-            submit_result = self.browser.click(
-                By.CSS_SELECTOR,
-                self.selectors.invoice.submit_button,
-                timeout=10
-            )
-            if submit_result.is_failure:
-                self._save_screenshot("submit_button_failed")
-                return Result.failure(
-                    "Failed to click submit button",
-                    submit_result.error
-                )
-
-            # Wait for page to process the submission
-            wait_result = self._wait_for_navigation(timeout=10)
-            if wait_result.is_failure:
-                logger.warning(f"Post-submit navigation wait failed: {wait_result.message}")
-
-            # Check for success message
-            success_result = self.browser.find_element(
-                By.CSS_SELECTOR,
-                self.selectors.invoice.success_message,
-                timeout=10
-            )
-
-            if success_result.is_success:
-                logger.info("Invoice submitted successfully")
-                self._save_screenshot("submit_success")
-                return Result.success(None, "Invoice submitted successfully")
-
-            # Check for error message
-            error_result = self.browser.find_element(
-                By.CSS_SELECTOR,
-                self.selectors.invoice.error_message,
-                timeout=5
-            )
-
-            if error_result.is_success:
-                self._save_screenshot("submit_error")
-                return Result.failure("Invoice submission failed - error message displayed")
-
-            # Uncertain result
-            self._save_screenshot("submit_uncertain")
-            logger.warning("Invoice submission result uncertain")
-            return Result.success(None, "Invoice submission result uncertain")
-
-        except Exception as e:
-            logger.error(f"Invoice submission failed: {e}", exc_info=True)
-            self._save_screenshot("submit_exception")
-            return Result.failure(f"Submit exception: {e}", e)
