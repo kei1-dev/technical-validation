@@ -363,6 +363,20 @@ def main():
                     added_lessons.append(lesson)
                     status = "✓ Form filled (not saved)" if args.dry_run else "✓ Added successfully"
                     print(f"      {status}")
+
+                    # 専属レッスンの場合、自動追加された前後対応もレポートに含める
+                    if lesson.get("category") == "専属レッスン":
+                        support_lesson = {
+                            "id": f"{lesson['id']}_support",
+                            "date": lesson["date"],
+                            "student_id": lesson["student_id"],
+                            "student_name": lesson["student_name"],
+                            "status": lesson["status"],
+                            "duration": 30,
+                            "category": "専属レッスン前後対応"
+                        }
+                        added_lessons.append(support_lesson)
+                        print(f"      ✓ Auto-added: 専属レッスン前後対応 (30min)")
                 else:
                     failed_lessons.append((lesson, add_result.message))
                     print(f"      ✗ Failed: {add_result.message}")

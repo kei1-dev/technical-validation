@@ -1807,7 +1807,8 @@ class TerakoyaClient:
         self,
         lesson: LessonData,
         unit_price: int = 2300,
-        dry_run: bool = False
+        dry_run: bool = False,
+        auto_add_support: bool = True
     ) -> Result[None]:
         """
         Add a single invoice item.
@@ -1816,6 +1817,7 @@ class TerakoyaClient:
             lesson: Lesson data to add as invoice item
             unit_price: Unit price per hour (default: 2300 yen)
             dry_run: If True, fill form but don't submit (default: False)
+            auto_add_support: If True, automatically add "専属レッスン前後対応" after "専属レッスン" (default: True)
 
         Returns:
             Result[None] indicating success
@@ -1870,12 +1872,15 @@ class TerakoyaClient:
 
             # Fill in form fields
             auto_date_mode = self._category_uses_auto_date(lesson.get("category", ""))
+            print(f"[DATE MODE] category='{lesson.get('category')}', auto_date_mode={auto_date_mode}")
 
             if auto_date_mode:
+                print(f"[DATE MODE] Skipping manual date input (auto-date category)")
                 logger.info(
                     "Skipping manual date input because dedicated lesson selection populates the date"
                 )
             else:
+                print(f"[DATE MODE] Manual date input required for: {lesson.get('category')}")
                 # Date (REQUIRED) - React DatePicker input
                 # Primary strategy dispatches React-compatible events via JavaScript
                 # Convert date format from YYYY-MM-DD to YYYY年MM月DD日
@@ -1915,7 +1920,32 @@ class TerakoyaClient:
 
                 time.sleep(0.2)
 
+                # Clear existing date value before setting new date (React DatePicker対応)
+                print(f"[DATE CLEAR] Target date to set: {date_formatted}")
+                logger.debug(f"Clearing existing date value before setting: {date_formatted}")
+                try:
+                    current_value = date_element.get_attribute('value')
+                    print(f"[DATE CLEAR] Current value BEFORE clear: '{current_value}'")
+                    logger.debug(f"Current date value: {current_value}")
+
+                    # React DatePickerの内部状態もクリアするため、空文字列を設定してイベントをディスパッチ
+                    self.browser.driver.execute_script("""
+                        const element = arguments[0];
+                        element.value = '';
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                    """, date_element)
+                    time.sleep(0.3)  # React状態更新を待つ
+
+                    # クリア後の値を確認
+                    cleared_value = date_element.get_attribute('value')
+                    print(f"[DATE CLEAR] Value AFTER clear: '{cleared_value}'")
+                except Exception as clear_error:
+                    print(f"[DATE CLEAR ERROR] {clear_error}")
+                    logger.warning(f"Failed to clear date field: {clear_error}")
+
                 # Primary approach: use JavaScript value setter compatible with React inputs
+                print(f"[DATE SET] Setting date via JavaScript: {date_formatted}")
                 logger.info(f"Setting date via JavaScript dispatcher: {date_formatted}")
                 set_date_result = self.browser.set_value_javascript(
                     By.CSS_SELECTOR,
@@ -1923,6 +1953,17 @@ class TerakoyaClient:
                     date_formatted,
                     timeout=5
                 )
+
+                # 設定後の値を確認
+                try:
+                    final_value = date_element.get_attribute('value')
+                    print(f"[DATE SET] Value AFTER set: '{final_value}'")
+                    if final_value == date_formatted:
+                        print(f"[DATE SET SUCCESS] ✓ Date correctly set to: {date_formatted}")
+                    else:
+                        print(f"[DATE SET WARNING] ✗ Expected '{date_formatted}' but got '{final_value}'")
+                except Exception as check_error:
+                    print(f"[DATE SET CHECK ERROR] {check_error}")
 
                 if set_date_result.is_failure:
                     logger.warning(
@@ -2133,11 +2174,13 @@ class TerakoyaClient:
 
             # Duration (REQUIRED) - Number input in minutes
             # Use JavaScript to set value (similar to date field) to avoid interactability issues
-            logger.info(f"Setting duration field to: {lesson['duration']}")
+            # For "専属レッスン前後対応", always use 30 minutes
+            duration = 30 if lesson.get("category") == "専属レッスン前後対応" else lesson["duration"]
+            logger.info(f"Setting duration field to: {duration}")
             duration_result = self.browser.set_value_javascript(
                 By.CSS_SELECTOR,
                 self.selectors.invoice.modal_duration_input,
-                str(lesson["duration"]),
+                str(duration),
                 timeout=5
             )
             if duration_result.is_failure:
@@ -2173,7 +2216,50 @@ class TerakoyaClient:
                 self._save_screenshot("dry_run_form_filled")
 
                 logger.info("Invoice item form filled successfully (dry-run mode - not submitted)")
-                return Result.success(None, "Invoice item form filled (not submitted)")
+                result = Result.success(None, "Invoice item form filled (not submitted)")
+
+                # Auto-add "専属レッスン前後対応" for "専属レッスン" (dry-run mode)
+                if lesson.get("category") == "専属レッスン" and auto_add_support:
+                    logger.info("専属レッスン detected - auto-adding 専属レッスン前後対応 (dry-run)")
+
+                    # Close current modal to allow next item to be added
+                    logger.debug("Closing modal before auto-adding support lesson")
+                    try:
+                        # Click cancel button to close modal
+                        cancel_button_xpath = "/html/body/div[1]/div[2]/div/div/div[3]/div/button[1]"
+                        cancel_result = self.browser.click(
+                            By.XPATH,
+                            cancel_button_xpath,
+                            timeout=3
+                        )
+                        if cancel_result.is_failure:
+                            logger.warning(f"Failed to click cancel button: {cancel_result.message}")
+                        time.sleep(1)  # Wait for modal to close
+                    except Exception as e:
+                        logger.warning(f"Failed to close modal: {e}")
+
+                    support_lesson: LessonData = {
+                        "id": f"{lesson['id']}_support",
+                        "date": lesson["date"],
+                        "student_id": lesson["student_id"],
+                        "student_name": lesson["student_name"],
+                        "status": lesson["status"],
+                        "duration": 30,
+                        "category": "専属レッスン前後対応"
+                    }
+                    # Recursively add support lesson (with auto_add_support=False to prevent infinite loop)
+                    support_result = self.add_invoice_item(
+                        support_lesson,
+                        unit_price,
+                        dry_run=True,
+                        auto_add_support=False
+                    )
+                    if support_result.is_success:
+                        logger.info(f"✓ 専属レッスン前後対応 auto-added for {lesson['date']} (dry-run)")
+                    else:
+                        logger.warning(f"Failed to auto-add 専属レッスン前後対応: {support_result.message}")
+
+                return result
             else:
                 # Normal mode: Click save button to submit
                 logger.info("Normal mode: Saving invoice item")
@@ -2192,7 +2278,38 @@ class TerakoyaClient:
                     logger.warning(f"Modal close wait failed: {close_wait_result.message}")
 
                 logger.info("Invoice item saved successfully")
-                return Result.success(None, "Invoice item saved")
+                result = Result.success(None, "Invoice item saved")
+
+                # Auto-add "専属レッスン前後対応" for "専属レッスン" (normal mode)
+                print(f"[AUTO-ADD CHECK] category='{lesson.get('category')}', auto_add_support={auto_add_support}")
+                if lesson.get("category") == "専属レッスン" and auto_add_support:
+                    print(f"[AUTO-ADD] 専属レッスン detected - will add 専属レッスン前後対応 for {lesson['date']}")
+                    logger.info("専属レッスン detected - auto-adding 専属レッスン前後対応")
+                    support_lesson: LessonData = {
+                        "id": f"{lesson['id']}_support",
+                        "date": lesson["date"],
+                        "student_id": lesson["student_id"],
+                        "student_name": lesson["student_name"],
+                        "status": lesson["status"],
+                        "duration": 30,
+                        "category": "専属レッスン前後対応"
+                    }
+                    print(f"[AUTO-ADD] Support lesson data: date={support_lesson['date']}, student={support_lesson['student_name']}, duration={support_lesson['duration']}min")
+                    # Recursively add support lesson (with auto_add_support=False to prevent infinite loop)
+                    support_result = self.add_invoice_item(
+                        support_lesson,
+                        unit_price,
+                        dry_run=False,
+                        auto_add_support=False
+                    )
+                    if support_result.is_success:
+                        print(f"[AUTO-ADD SUCCESS] ✓ 専属レッスン前後対応 added for {lesson['date']}")
+                        logger.info(f"✓ 専属レッスン前後対応 auto-added for {lesson['date']}")
+                    else:
+                        print(f"[AUTO-ADD FAILED] ✗ Failed: {support_result.message}")
+                        logger.warning(f"Failed to auto-add 専属レッスン前後対応: {support_result.message}")
+
+                return result
 
         except Exception as e:
             logger.error(f"Failed to add invoice item: {e}", exc_info=True)
@@ -2269,10 +2386,10 @@ class TerakoyaClient:
 
         auto_categories = {
             "専属レッスン",
-            "専属レッスン前後対応",
         }
 
-        return any(key in category for key in auto_categories)
+        # 完全一致でチェック（部分一致だと「専属レッスン前後対応」も含まれてしまう）
+        return category in auto_categories
 
     @staticmethod
     def _pick_lesson_option(
@@ -2319,7 +2436,8 @@ class TerakoyaClient:
         lesson: LessonData,
         unit_price: int = 2300,
         max_retries: int = 3,
-        dry_run: bool = False
+        dry_run: bool = False,
+        auto_add_support: bool = True
     ) -> Result[None]:
         """
         Add invoice item with retry logic.
@@ -2332,6 +2450,7 @@ class TerakoyaClient:
             unit_price: Unit price per hour
             max_retries: Maximum retry attempts
             dry_run: If True, fill form but don't submit (default: False)
+            auto_add_support: If True, automatically add "専属レッスン前後対応" after "専属レッスン" (default: True)
 
         Returns:
             Result[None] indicating success
@@ -2353,7 +2472,7 @@ class TerakoyaClient:
                 )
 
                 # Direct call without circuit breaker (already applied at client level)
-                result = self.add_invoice_item(lesson, unit_price, dry_run=dry_run)
+                result = self.add_invoice_item(lesson, unit_price, dry_run=dry_run, auto_add_support=auto_add_support)
 
                 if result.is_success:
                     return result
