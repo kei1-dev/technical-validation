@@ -86,6 +86,20 @@ param difyWebImage = 'langgenius/dify-web:latest'
 param difyApiImage = 'langgenius/dify-api:latest'
 param difyWorkerImage = 'langgenius/dify-api:latest'
 
+// New container images
+param sandboxImage = 'langgenius/dify-sandbox:main'
+param ssrfProxyImage = 'ubuntu/squid:latest'
+param pluginDaemonImage = 'langgenius/dify-plugin-daemon:latest-serverless'
+
+// Security keys for new containers
+// IMPORTANT: Generate these keys before deployment using:
+// - Sandbox API Key: openssl rand -base64 32
+// - Plugin Daemon Key: openssl rand -base64 42
+// - Plugin Inner API Key: openssl rand -base64 42
+param sandboxApiKey = 'Y93qqfEAFdN3MBI0U1106i5iUwWG8muv4JM6lN7Nm9Y='
+param pluginDaemonKey = 'VaD8E/2kOkL+MZo2TMDPpxvTGn2as6EY4UZbJRBdGRPNRhYVdh4x0Rso'
+param pluginInnerApiKey = '6gn2xCT+UJVmjwsBVRACQ99m0RAW2VDyt8sget7p5XqmtZ4rSo6nA52t'
+
 // NOTE: nginxImage, acrName, acrLoginServer, acrAdminUsername, and acrAdminPassword
 // are provided by the deployment script and should NOT be set here
 // TEMPORARY: Adding these parameters for manual deployment
@@ -98,3 +112,16 @@ param nginxImage = 'difyacrdevenqofxlmd5ei6.azurecr.io/dify-nginx:latest'
 // Dev environment: min=1 to avoid 502 errors (at least 1 replica always running)
 param containerAppMinReplicas = 1
 param containerAppMaxReplicas = 5
+
+// ============================================================================
+// Azure OpenAI Parameters
+// ============================================================================
+
+// Enable Azure OpenAI integration for GPT-4.1
+param enableAzureOpenAI = true
+
+// GPT-4.1 model deployment configuration
+param azureOpenAIDeploymentName = 'gpt-41-deployment'
+param azureOpenAIModelName = 'gpt-4.1'
+param azureOpenAIModelVersion = '2025-04-14'
+param azureOpenAIModelCapacity = 10  // TPM (Tokens Per Minute) for dev environment

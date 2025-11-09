@@ -36,6 +36,9 @@ param difyWebAppName string
 @description('dify-api app name')
 param difyApiAppName string
 
+@description('plugin-daemon app name')
+param pluginDaemonAppName string = 'plugin_daemon'
+
 // ============================================================================
 // nginx Container App
 // ============================================================================
@@ -104,6 +107,14 @@ resource nginxContainerApp 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'DIFY_API_PORT'
+              value: '80'
+            }
+            {
+              name: 'DIFY_PLUGIN_DAEMON_HOST'
+              value: pluginDaemonAppName
+            }
+            {
+              name: 'DIFY_PLUGIN_DAEMON_PORT'
               value: '80'
             }
           ]

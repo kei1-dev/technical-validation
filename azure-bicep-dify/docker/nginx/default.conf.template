@@ -1,10 +1,17 @@
 # Upstream servers
+# In Azure Container Apps, services can be accessed by their container app name
+# Environment variables are used for flexibility across different environments
 upstream web {
     server ${DIFY_WEB_HOST}:${DIFY_WEB_PORT};
 }
 
 upstream api {
     server ${DIFY_API_HOST}:${DIFY_API_PORT};
+}
+
+# Plugin Daemon upstream for plugin hook endpoints
+upstream plugin_daemon {
+    server ${DIFY_PLUGIN_DAEMON_HOST}:${DIFY_PLUGIN_DAEMON_PORT};
 }
 
 server {
@@ -50,6 +57,15 @@ server {
     location /mcp {
         proxy_pass http://api;
         proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Plugin hook endpoint - routes to Plugin Daemon
+    # This endpoint is used by external services to trigger plugin hooks
+    location /e/ {
+        proxy_pass http://plugin_daemon;
+        proxy_set_header Host ${DIFY_PLUGIN_DAEMON_HOST};
+        proxy_set_header Dify-Hook-Url $scheme://$host$request_uri;
         include /etc/nginx/proxy_params;
     }
 

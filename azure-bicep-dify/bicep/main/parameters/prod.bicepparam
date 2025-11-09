@@ -87,6 +87,21 @@ param difyWebImage = 'langgenius/dify-web:0.6.13'
 param difyApiImage = 'langgenius/dify-api:0.6.13'
 param difyWorkerImage = 'langgenius/dify-api:0.6.13'
 
+// New container images (use specific versions for production)
+param sandboxImage = 'langgenius/dify-sandbox:0.2.12'
+param ssrfProxyImage = 'ubuntu/squid:latest'
+param pluginDaemonImage = 'langgenius/dify-plugin-daemon:0.4.0'
+
+// Security keys for new containers
+// IMPORTANT: Generate these keys before deployment using:
+// - Sandbox API Key: openssl rand -base64 32
+// - Plugin Daemon Key: openssl rand -base64 42
+// - Plugin Inner API Key: openssl rand -base64 42
+// Store these keys securely in Azure Key Vault or a secure password manager
+param sandboxApiKey = 'CHANGE_ME_SANDBOX_API_KEY'
+param pluginDaemonKey = 'CHANGE_ME_PLUGIN_DAEMON_KEY'
+param pluginInnerApiKey = 'CHANGE_ME_PLUGIN_INNER_API_KEY'
+
 // NOTE: nginxImage, acrName, acrLoginServer, acrAdminUsername, and acrAdminPassword
 // are provided by the deployment script and should NOT be set here
 

@@ -9,18 +9,24 @@ Azure Container AppsとBicepを使用してDifyをデプロイするためのInf
 ### 想定アーキテクチャ
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Azure Container Apps                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
-│  │ Dify Web │  │ Dify API │  │  Worker  │                  │
-│  └──────────┘  └──────────┘  └──────────┘                  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                       Azure Container Apps                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐          │
+│  │ Dify Web │  │ Dify API │  │  Worker  │  │ Worker Beat│          │
+│  └──────────┘  └──────────┘  └──────────┘  └────────────┘          │
+│                                                                       │
+│  ┌──────────┐  ┌────────────┐  ┌────────────────┐  ┌──────────┐   │
+│  │  nginx   │  │  Sandbox   │  │ Plugin Daemon  │  │SSRF Proxy│   │
+│  └──────────┘  └────────────┘  └────────────────┘  └──────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
         │                  │                  │
 ┌───────▼────────┐  ┌──────▼─────┐  ┌────────▼────────┐
 │   PostgreSQL   │  │   Redis    │  │  Blob Storage   │
-│ Flexible Server│  │   Cache    │  │                 │
+│ Flexible Server│  │   Cache    │  │  - dify-app     │
+│  - dify        │  │            │  │  - dify-plugins │
+│  - dify_plugin │  │            │  │                 │
 └────────────────┘  └────────────┘  └─────────────────┘
         │                  │                  │
         └──────────────────┼──────────────────┘
@@ -36,9 +42,18 @@ Azure Container AppsとBicepを使用してDifyをデプロイするためのInf
   - Web UI
   - API Server
   - Worker (バックグラウンドジョブ処理)
+  - Worker Beat (定期タスクスケジューラー)
+  - nginx (リバースプロキシ)
+  - Sandbox (コード実行環境)
+  - Plugin Daemon (プラグイン管理)
+  - SSRF Proxy (セキュリティプロキシ)
 - **Azure Database for PostgreSQL Flexible Server**: メインデータベース
+  - `dify`: メインアプリケーションDB
+  - `dify_plugin`: プラグイン専用DB
 - **Azure Cache for Redis**: キャッシュ層、セッション管理
-- **Azure Blob Storage**: ファイル、ドキュメント保存
+- **Azure Blob Storage**: ファイル、ドキュメント、プラグイン保存
+  - `dify-app-storage`: アプリケーションファイル
+  - `dify-plugins`: プラグインパッケージ
 - **Azure Virtual Network**: ネットワーク分離
 - **Azure Application Insights**: 監視・ログ分析
 - **Azure Log Analytics Workspace**: ログ集約

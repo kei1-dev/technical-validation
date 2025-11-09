@@ -96,6 +96,15 @@ param difyWorkerImage string = 'langgenius/dify-api:latest'
 @description('nginx container image')
 param nginxImage string
 
+@description('Sandbox container image')
+param sandboxImage string = 'langgenius/dify-sandbox:0.2.12'
+
+@description('SSRF Proxy container image')
+param ssrfProxyImage string = 'ubuntu/squid:latest'
+
+@description('Plugin Daemon container image')
+param pluginDaemonImage string = 'langgenius/dify-plugin-daemon:0.4.0'
+
 // ACR Parameters
 @description('ACR name for container registry')
 param acrName string
@@ -120,6 +129,34 @@ param containerAppMaxReplicas int = environment == 'prod' ? 10 : 5
 @description('Dify secret key for encryption')
 @secure()
 param difySecretKey string
+
+@description('Sandbox API key for authentication')
+@secure()
+param sandboxApiKey string
+
+@description('Plugin Daemon server key for authentication')
+@secure()
+param pluginDaemonKey string
+
+@description('Plugin inner API key for communication with Dify API')
+@secure()
+param pluginInnerApiKey string
+
+// Azure OpenAI Parameters
+@description('Enable Azure OpenAI integration')
+param enableAzureOpenAI bool = true
+
+@description('Azure OpenAI model deployment name')
+param azureOpenAIDeploymentName string = 'gpt-41-deployment'
+
+@description('Azure OpenAI model name')
+param azureOpenAIModelName string = 'gpt-4.1'
+
+@description('Azure OpenAI model version')
+param azureOpenAIModelVersion string = '2025-04-14'
+
+@description('Azure OpenAI model capacity (TPM)')
+param azureOpenAIModelCapacity int = environment == 'prod' ? 20 : 10
 
 // ============================================================================
 // Module Deployments
@@ -165,7 +202,23 @@ module keyvault 'modules/keyvault.bicep' = {
   }
 }
 
-// 4. Data Layer - PostgreSQL
+// 4. Azure OpenAI Service
+module azureOpenAI 'modules/azureOpenAI.bicep' = if (enableAzureOpenAI) {
+  name: 'azureOpenAI-deployment'
+  params: {
+    environment: environment
+    location: location
+    tags: tags
+    skuName: 'S0'
+    modelDeploymentName: azureOpenAIDeploymentName
+    modelName: azureOpenAIModelName
+    modelVersion: azureOpenAIModelVersion
+    modelCapacity: azureOpenAIModelCapacity
+    publicNetworkAccess: false
+  }
+}
+
+// 5. Data Layer - PostgreSQL
 module postgresql 'modules/postgresql.bicep' = {
   name: 'postgresql-deployment'
   params: {
@@ -182,7 +235,7 @@ module postgresql 'modules/postgresql.bicep' = {
   }
 }
 
-// 5. Data Layer - Redis
+// 6. Data Layer - Redis
 module redis 'modules/redis.bicep' = {
   name: 'redis-deployment'
   params: {
@@ -196,7 +249,7 @@ module redis 'modules/redis.bicep' = {
   }
 }
 
-// 6. Data Layer - Storage
+// 7. Data Layer - Storage
 module storage 'modules/storage.bicep' = {
   name: 'storage-deployment'
   params: {
@@ -244,6 +297,15 @@ module privateDnsZoneKeyVault 'modules/privateDnsZone.bicep' = {
   name: 'privateDnsZoneKeyVault-deployment'
   params: {
     privateDnsZoneName: 'privatelink.vaultcore.azure.net'
+    vnetId: network.outputs.vnetId
+    tags: tags
+  }
+}
+
+module privateDnsZoneOpenAI 'modules/privateDnsZone.bicep' = if (enableAzureOpenAI) {
+  name: 'privateDnsZoneOpenAI-deployment'
+  params: {
+    privateDnsZoneName: 'privatelink.openai.azure.com'
     vnetId: network.outputs.vnetId
     tags: tags
   }
@@ -358,6 +420,23 @@ module privateEndpointKeyVault 'modules/privateEndpoint.bicep' = {
   ]
 }
 
+module privateEndpointOpenAI 'modules/privateEndpoint.bicep' = if (enableAzureOpenAI) {
+  name: 'privateEndpointOpenAI-deployment'
+  params: {
+    privateEndpointName: 'dify-${environment}-openai-pe'
+    location: location
+    tags: tags
+    subnetId: network.outputs.privateEndpointSubnetId
+    privateLinkServiceId: azureOpenAI.outputs.openAIAccountId
+    groupIds: ['account']
+    privateDnsZoneIds: [privateDnsZoneOpenAI.outputs.privateDnsZoneId]
+  }
+  dependsOn: [
+    azureOpenAI
+    privateDnsZoneOpenAI
+  ]
+}
+
 // 9. Container Apps Environment
 module containerAppsEnv 'modules/containerAppsEnv.bicep' = {
   name: 'containerAppsEnv-deployment'
@@ -462,6 +541,18 @@ module containerAppApi 'modules/containerApp.bicep' = {
         name: 'secret-key'
         value: difySecretKey
       }
+      {
+        name: 'sandbox-api-key'
+        value: sandboxApiKey
+      }
+      {
+        name: 'plugin-inner-api-key'
+        value: pluginInnerApiKey
+      }
+      {
+        name: 'azure-openai-api-key'
+        value: enableAzureOpenAI ? azureOpenAI.outputs.openAIApiKey : ''
+      }
     ]
     environmentVariables: [
       {
@@ -552,6 +643,72 @@ module containerAppApi 'modules/containerApp.bicep' = {
         name: 'AZURE_BLOB_ACCOUNT_URL'
         value: 'https://${storage.outputs.storageAccountName}.blob.${az.environment().suffixes.storage}'
       }
+      {
+        name: 'CODE_EXECUTION_ENDPOINT'
+        value: 'http://${containerAppSandbox.outputs.sandboxContainerAppFqdn}:8194'
+      }
+      {
+        name: 'CODE_EXECUTION_API_KEY'
+        secretRef: 'sandbox-api-key'
+      }
+      {
+        name: 'SSRF_PROXY_HTTP_URL'
+        value: 'http://${containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn}:3128'
+      }
+      {
+        name: 'SSRF_PROXY_HTTPS_URL'
+        value: 'http://${containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn}:3128'
+      }
+      {
+        name: 'PLUGIN_DAEMON_URL'
+        value: 'http://dify-${environment}-plugin-daemon.${containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain}:5002'
+      }
+      {
+        name: 'INNER_API_KEY_FOR_PLUGIN'
+        secretRef: 'plugin-inner-api-key'
+      }
+      // Vector Store Configuration (pgvector)
+      {
+        name: 'VECTOR_STORE'
+        value: 'pgvector'
+      }
+      {
+        name: 'PGVECTOR_HOST'
+        value: postgresql.outputs.postgresqlServerFqdn
+      }
+      {
+        name: 'PGVECTOR_PORT'
+        value: '5432'
+      }
+      {
+        name: 'PGVECTOR_USER'
+        value: postgresqlAdminUsername
+      }
+      {
+        name: 'PGVECTOR_PASSWORD'
+        secretRef: 'db-password'
+      }
+      {
+        name: 'PGVECTOR_DATABASE'
+        value: postgresql.outputs.postgresqlDatabaseName
+      }
+      // Azure OpenAI Configuration
+      {
+        name: 'AZURE_OPENAI_API_BASE'
+        value: enableAzureOpenAI ? azureOpenAI.outputs.openAIEndpoint : ''
+      }
+      {
+        name: 'AZURE_OPENAI_API_KEY'
+        secretRef: 'azure-openai-api-key'
+      }
+      {
+        name: 'AZURE_OPENAI_API_VERSION'
+        value: '2024-02-15-preview'
+      }
+      {
+        name: 'OPENAI_API_TYPE'
+        value: 'azure'
+      }
     ]
     scaleRules: [
       {
@@ -573,6 +730,8 @@ module containerAppApi 'modules/containerApp.bicep' = {
     privateEndpointPostgres
     privateEndpointRedis
     privateEndpointBlob
+    containerAppSandbox
+    containerAppSsrfProxy
   ]
 }
 
@@ -608,6 +767,18 @@ module containerAppWorker 'modules/containerApp.bicep' = {
       {
         name: 'secret-key'
         value: difySecretKey
+      }
+      {
+        name: 'sandbox-api-key'
+        value: sandboxApiKey
+      }
+      {
+        name: 'plugin-inner-api-key'
+        value: pluginInnerApiKey
+      }
+      {
+        name: 'azure-openai-api-key'
+        value: enableAzureOpenAI ? azureOpenAI.outputs.openAIApiKey : ''
       }
     ]
     environmentVariables: [
@@ -699,6 +870,192 @@ module containerAppWorker 'modules/containerApp.bicep' = {
         name: 'AZURE_BLOB_ACCOUNT_URL'
         value: 'https://${storage.outputs.storageAccountName}.blob.${az.environment().suffixes.storage}'
       }
+      {
+        name: 'CODE_EXECUTION_ENDPOINT'
+        value: 'http://${containerAppSandbox.outputs.sandboxContainerAppFqdn}:8194'
+      }
+      {
+        name: 'CODE_EXECUTION_API_KEY'
+        secretRef: 'sandbox-api-key'
+      }
+      {
+        name: 'SSRF_PROXY_HTTP_URL'
+        value: 'http://${containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn}:3128'
+      }
+      {
+        name: 'SSRF_PROXY_HTTPS_URL'
+        value: 'http://${containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn}:3128'
+      }
+      {
+        name: 'PLUGIN_DAEMON_URL'
+        value: 'http://dify-${environment}-plugin-daemon.${containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain}:5002'
+      }
+      {
+        name: 'INNER_API_KEY_FOR_PLUGIN'
+        secretRef: 'plugin-inner-api-key'
+      }
+      // Vector Store Configuration (pgvector)
+      {
+        name: 'VECTOR_STORE'
+        value: 'pgvector'
+      }
+      {
+        name: 'PGVECTOR_HOST'
+        value: postgresql.outputs.postgresqlServerFqdn
+      }
+      {
+        name: 'PGVECTOR_PORT'
+        value: '5432'
+      }
+      {
+        name: 'PGVECTOR_USER'
+        value: postgresqlAdminUsername
+      }
+      {
+        name: 'PGVECTOR_PASSWORD'
+        secretRef: 'db-password'
+      }
+      {
+        name: 'PGVECTOR_DATABASE'
+        value: postgresql.outputs.postgresqlDatabaseName
+      }
+      // Azure OpenAI Configuration
+      {
+        name: 'AZURE_OPENAI_API_BASE'
+        value: enableAzureOpenAI ? azureOpenAI.outputs.openAIEndpoint : ''
+      }
+      {
+        name: 'AZURE_OPENAI_API_KEY'
+        secretRef: 'azure-openai-api-key'
+      }
+      {
+        name: 'AZURE_OPENAI_API_VERSION'
+        value: '2024-02-15-preview'
+      }
+      {
+        name: 'OPENAI_API_TYPE'
+        value: 'azure'
+      }
+    ]
+    scaleRules: []
+  }
+  dependsOn: [
+    containerAppsEnv
+    keyvault
+    postgresql
+    redis
+    storage
+    privateEndpointPostgres
+    privateEndpointRedis
+    privateEndpointBlob
+    containerAppSandbox
+    containerAppSsrfProxy
+  ]
+}
+
+// 13. Container Apps - Worker Beat (Celery Beat Scheduler)
+module containerAppWorkerBeat 'modules/containerApp.bicep' = {
+  name: 'containerAppWorkerBeat-deployment'
+  params: {
+    containerAppName: 'dify-${environment}-worker-beat'
+    location: location
+    tags: tags
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
+    managedIdentityId: keyvault.outputs.containerAppsIdentityId
+    containerImage: difyApiImage  // Same image as API/Worker
+    containerPort: 5001
+    cpu: '0.5'
+    memory: '1.0Gi'
+    minReplicas: 1  // Always running (single instance)
+    maxReplicas: 1  // Single instance only
+    enableIngress: false  // No external access needed
+    secrets: [
+      {
+        name: 'db-password'
+        value: postgresqlAdminPassword
+      }
+      {
+        name: 'redis-password'
+        value: redis.outputs.redisPrimaryKey
+      }
+      {
+        name: 'storage-key'
+        value: storage.outputs.storageAccountPrimaryKey
+      }
+      {
+        name: 'secret-key'
+        value: difySecretKey
+      }
+    ]
+    environmentVariables: [
+      {
+        name: 'MODE'
+        value: 'beat'  // Celery Beat mode
+      }
+      {
+        name: 'DB_HOST'
+        value: postgresql.outputs.postgresqlServerFqdn
+      }
+      {
+        name: 'DB_PORT'
+        value: '5432'
+      }
+      {
+        name: 'DB_USERNAME'
+        value: postgresqlAdminUsername
+      }
+      {
+        name: 'DB_DATABASE'
+        value: postgresql.outputs.postgresqlDatabaseName
+      }
+      {
+        name: 'DB_PASSWORD'
+        secretRef: 'db-password'
+      }
+      {
+        name: 'REDIS_HOST'
+        value: redis.outputs.redisHostName
+      }
+      {
+        name: 'REDIS_PORT'
+        value: string(redis.outputs.redisSslPort)
+      }
+      {
+        name: 'REDIS_USE_SSL'
+        value: 'true'
+      }
+      {
+        name: 'REDIS_PASSWORD'
+        secretRef: 'redis-password'
+      }
+      {
+        name: 'STORAGE_TYPE'
+        value: 'azure-blob'
+      }
+      {
+        name: 'AZURE_BLOB_ACCOUNT_NAME'
+        value: storage.outputs.storageAccountName
+      }
+      {
+        name: 'AZURE_BLOB_ACCOUNT_KEY'
+        secretRef: 'storage-key'
+      }
+      {
+        name: 'AZURE_BLOB_CONTAINER_NAME'
+        value: 'dify-app-storage'
+      }
+      {
+        name: 'SECRET_KEY'
+        secretRef: 'secret-key'
+      }
+      {
+        name: 'LOG_LEVEL'
+        value: environment == 'prod' ? 'INFO' : 'DEBUG'
+      }
+      {
+        name: 'AZURE_BLOB_ACCOUNT_URL'
+        value: 'https://${storage.outputs.storageAccountName}.blob.${az.environment().suffixes.storage}'
+      }
     ]
     scaleRules: []
   }
@@ -714,7 +1071,7 @@ module containerAppWorker 'modules/containerApp.bicep' = {
   ]
 }
 
-// 13. Container Apps - nginx
+// 14. Container Apps - nginx
 module containerAppNginx 'modules/nginxContainerApp.bicep' = {
   name: 'containerAppNginx-deployment'
   params: {
@@ -728,17 +1085,101 @@ module containerAppNginx 'modules/nginxContainerApp.bicep' = {
     acrAdminUsername: acrAdminUsername
     acrAdminPassword: acrAdminPassword
     difyWebAppName: containerAppWeb.outputs.containerAppName
-    difyApiAppName: containerAppApi.outputs.containerAppName
+    difyApiAppName: 'dify-${environment}-api'
+    pluginDaemonAppName: 'dify-${environment}-plugin-daemon'
   }
   dependsOn: [
     containerAppsEnv
     keyvault
     containerAppWeb
-    containerAppApi
   ]
 }
 
-// 14. Application Gateway
+// 15. Container Apps - SSRF Proxy
+module containerAppSsrfProxy 'modules/ssrfProxyContainerApp.bicep' = {
+  name: 'containerAppSsrfProxy-deployment'
+  params: {
+    containerAppName: 'dify-${environment}-ssrf-proxy'
+    location: location
+    tags: tags
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
+    managedIdentityId: keyvault.outputs.containerAppsIdentityId
+    ssrfProxyImage: ssrfProxyImage
+    sandboxFqdn: ''  // Will be set after Sandbox is deployed
+    cpu: '0.25'
+    memory: '0.5Gi'
+    minReplicas: containerAppMinReplicas
+    maxReplicas: environment == 'prod' ? 5 : 3
+  }
+  dependsOn: [
+    containerAppsEnv
+    keyvault
+  ]
+}
+
+// 16. Container Apps - Sandbox
+module containerAppSandbox 'modules/sandboxContainerApp.bicep' = {
+  name: 'containerAppSandbox-deployment'
+  params: {
+    containerAppName: 'dify-${environment}-sandbox'
+    location: location
+    tags: tags
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
+    managedIdentityId: keyvault.outputs.containerAppsIdentityId
+    sandboxImage: sandboxImage
+    sandboxApiKey: sandboxApiKey
+    ssrfProxyFqdn: containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn
+    cpu: '0.5'
+    memory: '1.0Gi'
+    minReplicas: containerAppMinReplicas
+    maxReplicas: environment == 'prod' ? 10 : 5
+  }
+  dependsOn: [
+    containerAppsEnv
+    keyvault
+    containerAppSsrfProxy
+  ]
+}
+
+// 17. Container Apps - Plugin Daemon
+module containerAppPluginDaemon 'modules/pluginDaemonContainerApp.bicep' = {
+  name: 'containerAppPluginDaemon-deployment'
+  params: {
+    containerAppName: 'dify-${environment}-plugin-daemon'
+    location: location
+    tags: tags
+    containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
+    managedIdentityId: keyvault.outputs.containerAppsIdentityId
+    pluginDaemonImage: pluginDaemonImage
+    postgresServerFqdn: postgresql.outputs.postgresqlServerFqdn
+    postgresAdminUsername: postgresqlAdminUsername
+    postgresAdminPassword: postgresqlAdminPassword
+    redisHostname: redis.outputs.redisHostName
+    redisPort: string(redis.outputs.redisSslPort)
+    redisPassword: redis.outputs.redisPrimaryKey
+    redisUseSsl: true
+    pluginDaemonKey: pluginDaemonKey
+    pluginInnerApiKey: pluginInnerApiKey
+    difyApiFqdn: 'dify-${environment}-api.${containerAppsEnv.outputs.containerAppsEnvironmentDefaultDomain}'
+    storageConnectionString: storage.outputs.blobConnectionString
+    cpu: '1.0'
+    memory: '2.0Gi'
+    minReplicas: containerAppMinReplicas
+    maxReplicas: environment == 'prod' ? 10 : 5
+  }
+  dependsOn: [
+    containerAppsEnv
+    keyvault
+    postgresql
+    redis
+    storage
+    privateEndpointPostgres
+    privateEndpointRedis
+    privateEndpointBlob
+  ]
+}
+
+// 18. Application Gateway
 module applicationGateway 'modules/applicationGateway.bicep' = {
   name: 'applicationGateway-deployment'
   params: {
@@ -798,5 +1239,26 @@ output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspa
 
 @description('Application Insights Name')
 output applicationInsightsName string = monitoring.outputs.applicationInsightsName
+
+@description('Sandbox Container App FQDN')
+output sandboxFqdn string = containerAppSandbox.outputs.sandboxContainerAppFqdn
+
+@description('SSRF Proxy Container App FQDN')
+output ssrfProxyFqdn string = containerAppSsrfProxy.outputs.ssrfProxyContainerAppFqdn
+
+@description('Plugin Daemon Container App FQDN')
+output pluginDaemonFqdn string = containerAppPluginDaemon.outputs.pluginDaemonContainerAppFqdn
+
+@description('Worker Beat Container App Name')
+output workerBeatName string = containerAppWorkerBeat.outputs.containerAppName
+
+@description('Azure OpenAI Account Name')
+output azureOpenAIAccountName string = enableAzureOpenAI ? azureOpenAI.outputs.openAIAccountName : ''
+
+@description('Azure OpenAI Endpoint')
+output azureOpenAIEndpoint string = enableAzureOpenAI ? azureOpenAI.outputs.openAIEndpoint : ''
+
+@description('Azure OpenAI Deployment Name')
+output azureOpenAIDeploymentName string = enableAzureOpenAI ? azureOpenAI.outputs.openAIDeploymentName : ''
 
 

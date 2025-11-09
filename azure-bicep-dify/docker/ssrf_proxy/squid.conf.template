@@ -1,0 +1,87 @@
+# Squid configuration for SSRF protection
+# This configuration provides forward proxy functionality with SSRF protection
+# and optional reverse proxy to Sandbox container
+
+# HTTP port for forward proxy
+http_port 3128
+
+# Coredump directory
+coredump_dir ${COREDUMP_DIR}
+
+# ACL definitions
+acl localnet src 10.0.0.0/8       # RFC1918 possible internal network
+acl localnet src 172.16.0.0/12    # RFC1918 possible internal network
+acl localnet src 192.168.0.0/16   # RFC1918 possible internal network
+acl localnet src fc00::/7          # RFC 4193 local private network range
+acl localnet src fe80::/10         # RFC 4291 link-local (directly plugged) machines
+
+acl SSL_ports port 443
+acl Safe_ports port 80            # http
+acl Safe_ports port 443           # https
+acl CONNECT method CONNECT
+
+# SSRF Protection: Deny access to private IP ranges
+acl private_ips dst 10.0.0.0/8
+acl private_ips dst 172.16.0.0/12
+acl private_ips dst 192.168.0.0/16
+acl private_ips dst 127.0.0.0/8
+acl private_ips dst fc00::/7
+acl private_ips dst fe80::/10
+acl private_ips dst ::1
+
+# Deny access to cloud metadata endpoints (AWS, Azure, GCP)
+acl metadata_endpoints dst 169.254.169.254
+acl metadata_endpoints dst fd00:ec2::254
+
+# Recommended minimum Access Permission configuration:
+# Deny requests to certain unsafe ports
+http_access deny !Safe_ports
+
+# Deny CONNECT to other than secure SSL ports
+http_access deny CONNECT !SSL_ports
+
+# Only allow cachemgr access from localhost
+http_access allow localhost manager
+http_access deny manager
+
+# Allow local network (Container Apps Environment)
+http_access allow localnet
+
+# Deny access to private IPs (SSRF protection)
+http_access deny private_ips
+
+# Deny access to metadata endpoints
+http_access deny metadata_endpoints
+
+# Allow localhost
+http_access allow localhost
+
+# Default deny all other access
+http_access deny all
+
+# Leave coredumps in the first cache dir
+coredump_dir /var/spool/squid
+
+# Add any of your own refresh_pattern entries above these.
+refresh_pattern ^ftp:           1440    20%     10080
+refresh_pattern ^gopher:        1440    0%      1440
+refresh_pattern -i (/cgi-bin/|\?) 0     0%      0
+refresh_pattern .               0       20%     4320
+
+# Optional: Reverse proxy configuration for Sandbox
+# This section is only needed if you want to expose Sandbox through the SSRF Proxy
+# To enable reverse proxy:
+# 1. Set REVERSE_PROXY_PORT environment variable to 8194
+# 2. Set SANDBOX_HOST environment variable to the Sandbox internal FQDN
+# 3. Set SANDBOX_PORT environment variable to 8194
+#
+# To disable reverse proxy (recommended for most deployments):
+# - Simply don't set REVERSE_PROXY_PORT or set it to empty string
+# - The forward proxy ACLs will remain active for SSRF protection
+#
+# Uncomment the following lines to enable reverse proxy:
+# http_port ${REVERSE_PROXY_PORT} accel defaultsite=${SANDBOX_HOST}
+# cache_peer ${SANDBOX_HOST} parent ${SANDBOX_PORT} 0 no-query originserver name=sandbox
+# acl sandbox_backend dstdomain ${SANDBOX_HOST}
+# cache_peer_access sandbox allow sandbox_backend
+# http_access allow sandbox_backend

@@ -66,6 +66,7 @@ var containerNames = [
   'dify-app-storage'    // Application files
   'dify-dataset'        // Datasets and documents
   'dify-tools'          // Tool assets
+  'dify-plugins'        // Plugin packages (for Plugin Daemon)
 ]
 
 // ============================================================================
