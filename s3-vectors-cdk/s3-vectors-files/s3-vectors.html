@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ja-JP"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>S3 Vectors とベクトルバケットの操作 - Amazon Simple Storage Service</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="s3-vectors" /><meta name="default_state" content="s3-vectors" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" /><meta name="description" content="Amazon S3 Vectors では、ベクトルの保存とクエリ専用の新しいバケットタイプであるベクトルバケットが導入されています。費用対効果の高いベクトル検索アプリケーションを構築するための S3 Vectors の機能、ユースケース、機能について説明します。" /><meta name="deployment_region" content="IAD" /><meta name="product" content="Amazon Simple Storage Service" /><meta name="guide" content="ユーザーガイド" /><meta name="abstract" content="Amazon Simple Storage Service (Amazon S3) を使用して、任意の量のデータをどこからでも保存および取得する方法について説明します。このガイドでは、Amazon S3 のバケット、オブジェクト、関連設定などの概念について説明し、一般的なオペレーションのコード例をいくつか示します。" /><meta name="guide-locale" content="ja_jp" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/s3-vectors.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/AmazonS3/latest/userguide/s3-vectors.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html" hreflang="x-default" /><meta name="feedback-item" content="S3" /><meta name="this_doc_product" content="Amazon Simple Storage Service" /><meta name="this_doc_guide" content="ユーザーガイド" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'s3'}"></script><meta id="panorama-serviceSubSection" value="ユーザーガイド" /><meta id="panorama-serviceConsolePage" value="S3 Vectors とベクトルバケットの操作" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>S3 Vectors とベクトルバケットの操作 - Amazon Simple Storage Service</title><meta name="pdf" content="s3-userguide.pdf#s3-vectors" /><meta name="rss" content="s3-userguide-rss-updates.rss" /><meta name="forums" content="https://repost.aws/ja/tags/TADSTjraA0Q4-a1dxk6eUYaw" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html" /><meta name="keywords" content="S3,Amazon S3,S3 ユーザーガイド,Amazon S3 ユーザーガイド,Amazon ユーザーガイド,s3 バケット,s3 オブジェクト,クラウドストレージ,データストレージ,S3 Vectors,ベクトルストレージ,類似度検索,ベクトルバケット,ベクトルインデックス" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "Amazon Simple Storage Service (S3)",
+        "item" : "https://docs.aws.amazon.com/s3/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "ユーザーガイド",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "S3 Vectors とベクトルバケットの操作",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="s3-userguide.pdf#s3-vectors" target="_blank" rel="noopener noreferrer" title="PDF を開く"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">ドキュメント</a><a href="/s3/index.html">Amazon Simple Storage Service (S3)</a><a href="Welcome.html">ユーザーガイド</a></div><div id="page-toc-src"><a href="#s3-vectors-what-is">Amazon S3 Vectors とは</a><a href="#s3-vectors-use-cases">ユースケース: 大規模なデータセット間での類似度検索</a><a href="#s3-vectors-features">S3 Vectors の機能</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="s3-vectors">S3 Vectors とベクトルバケットの操作</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>Amazon S3 Vectors は Amazon Simple Storage Service のプレビューリリースであり、変更される可能性があります。</p></div></div>
+        <h2 id="s3-vectors-what-is">Amazon S3 Vectors とは</h2>
+        <p>Amazon S3 Vectors は、セマンティック検索および AI アプリケーション向けに、コスト最適化された専用ベクトルストレージを提供します。Amazon S3 レベルの伸縮性と耐久性により、1 秒未満のクエリパフォーマンスでベクトルデータセットを保存できるため、S3 Vectors はベクトルインデックスを構築および拡張する必要があるアプリケーションに最適です。インフラストラクチャをプロビジョニングすることなく、ベクトルデータを保存、アクセス、および類似度クエリを実行するための専用の API オペレーションのセットを取得します。S3 Vectors は、連携するいくつかの主要なコンポーネントで構成されています。</p>
+        
+        <div class="itemizedlist">
+            
+             
+             
+             
+        <ul class="itemizedlist"><li class="listitem">
+                <p><b>ベクトルバケット</b> – ベクトルの保存とクエリ専用の新しいバケットタイプ。</p>
+            </li><li class="listitem">
+                <p><b>ベクトルインデックス</b> – ベクトルバケット内では、ベクトルデータをベクトルインデックス内で整理できます。ベクトルインデックス内のベクトルデータに対して類似度クエリを実行します。</p>
+            </li><li class="listitem">
+                <p><b>ベクトル</b> – ベクトルインデックスにベクトルを保存します。類似度検索および AI アプリケーションの場合、ベクトルはベクトル埋め込みとして作成されます。ベクトル埋め込みは、コンテンツ (テキスト、画像、オーディオなど) 間のセマンティック関係を保持する数値表現であり、類似アイテムが近くに配置されます。S3 ベクトルは、ベクトル間の近さを数学的に比較することで、完全一致ではなく意味論的意味に基づいて類似度検索を実行できます。ベクトルインデックスにベクトルデータを追加する場合、一連の条件 (タイムスタンプ、カテゴリ、ユーザー設定など) に基づいて将来のフィルタリングクエリのためのメタデータをアタッチすることもできます。</p>
+            </li></ul></div>
+
+        <p>S3 Vectors への書き込みには強力な整合性があります。つまり、最後に追加されたデータにすぐにアクセスできます。時間の経過とともにベクトルを書き込み、更新、削除すると、S3 Vectors はベクトルデータを自動的に最適化して、データセットがスケールおよび進化しても、ベクトルストレージの価格パフォーマンスを最大化します。バケットや IAM ポリシーなど、Amazon S3 の既存のアクセスコントロールメカニズムを使用して、ベクトルデータへのアクセスを制御できます。バケットあたりのベクトルインデックス制限とインデックスあたりのベクトル制限の詳細については、「<a href="./s3-vectors-limitations.html">制限と制約</a>」を参照してください。</p>
+     
+        <h2 id="s3-vectors-use-cases">ユースケース: 大規模なデータセット間での類似度検索</h2>
+        <p>類似度検索を使用すると、キーワードの完全一致ではなく、ベクトル表現に基づいて概念的に相互に関連する項目を検索できます。これらの検索は、正確な単語やビジュアル要素が異なっていても、同様の意味や特性を持つコンテンツを識別します。</p>
+        <p>S3 Vectors での類似度検索の一般的なユースケースは次のとおりです。</p>
+
+        <div class="itemizedlist">
+             
+             
+             
+             
+             
+             
+        <ul class="itemizedlist"><li class="listitem">
+                <p><b>医療画像</b> - 診断と治療計画に役立つ数百万の医療画像で類似点を見つける</p>
+            </li><li class="listitem">
+                <p><b>著作権侵害</b> - 大規模なメディアライブラリ間で派生コンテツの可能性があるものを特定する</p>
+            </li><li class="listitem">
+                <p><b>画像重複排除</b> - 大きな画像コレクションから重複した画像、またはほぼ重複した画像を検出して削除する</p>
+            </li><li class="listitem">
+                <p><b>動画の理解</b> - 動画アセット内の特定のシーンまたはコンテンツを検索する</p>
+            </li><li class="listitem">
+                <p><b>エンタープライズドキュメント検索</b> - 企業ドキュメント間のセマンティック検索を有効にして、意味に基づいて関連情報を見つける</p>
+            </li><li class="listitem">
+                <p><b>パーソナライゼーション</b> - 類似アイテムを検索してカスタマイズされたレコメンデーションを提供する</p>
+            </li></ul></div>
+
+        <p>費用対効果の高いベクトル検索とエージェンティック AI アプリケーションを 1 秒未満の検索時間で構築する場合は、S3 Vectors を使用する必要があります。ベクトルバケットでは、使用する分に対してのみ料金が発生し、ベクトル埋め込みのアップロード、保存、クエリのコストを削減できます。料金に関する詳細については、「<a href="https://aws.amazon.com/s3/pricing/" rel="noopener noreferrer" target="_blank"><span>Amazon S3 の料金</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>」を参照してください。</p>
+     
+        <h2 id="s3-vectors-features">S3 Vectors の機能</h2>
+         
+            <p></p>
+         
+         
+            <h3 id="s3-vectors-purpose-built-storage">ベクトル専用ストレージ</h3>
+
+            <p>S3 Vectors は、クラウド内でベクトルを保存およびクエリするための最初の専用オブジェクトストレージです。ベクトルバケットは、ベクトルデータのコスト効率、伸縮性、耐久性に優れたストレージを提供するように設計されています。</p>
+
+            <p>ベクトル埋め込みは、医療画像間の類似性の検出、数千時間の動画映像の異常の検出、大規模なコードベースの移動、特定の法的問題に最も関連性の高い判例の特定など、お客様が非構造化データを使用および取得する方法を変革しています。これらの新しいアプリケーションは、埋め込みモデルと組み合わせて、データ (テキスト、画像、動画、コードなど) の意味論的意味を数値ベクトル埋め込みとしてエンコードします。</p>
+
+            <p>ベクトルバケット内では、インフラストラクチャをプロビジョニングすることなく、ベクトルインデックス内でベクトルデータを整理します。時間の経過とともにベクトルを記述、更新、削除すると、S3 Vectors はベクトルデータを自動的に最適化して、データセットがスケールおよび進化しても、ベクトルストレージの可能な限り最高の価格パフォーマンスを実現します。バケットあたりのベクトルインデックス制限とインデックスあたりのベクトル制限の詳細については、「<a href="./s3-vectors-limitations.html">制限と制約</a>」を参照してください。</p>
+         
+
+         
+            <h3 id="s3-vectors-similarity-queries">類似度クエリを実行する</h3>
+            <p>S3 Vectors を使用すると、効率的な類似度クエリを実行して、1 秒未満の応答時間で、クエリベクトルに最も類似したベクトルを見つけることができます。S3 Vectors は、クエリの頻度が低いワークロードに最適です。</p>
+         
+
+         
+            <h3 id="s3-vectors-filtering-metadata">メタデータフィルタリング</h3>
+
+            <p>メタデータ (年、作成者、ジャンル、場所など) をキーと値のペアとしてベクトルにアタッチできます。デフォルトでは、明示的にフィルタリング不可能として指定しない限り、すべてのメタデータをフィルタリングできます。フィルタリング可能なメタデータを使用して、特定の属性に基づいてクエリ結果をフィルタリングし、クエリの関連性を高めることができます。ベクトルインデックスは、文字列、数値、ブール値、リストタイプのメタデータをサポートします。ベクトルあたりのメタデータサイズ制限とベクトルあたりのフィルタリング可能なメタデータサイズ制限の詳細については、「<a href="./s3-vectors-limitations.html">制限と制約</a>」を参照してください。</p>
+         
+
+         
+            <h3 id="s3-vectors-access-management-and-security">アクセス管理とセキュリティ</h3>
+
+            <p>AWS Organizations の IAM および<a href="https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html">サービスコントロールポリシー</a>を使用して、ベクトルバケット内のリソースへのアクセスを管理できます。S3 Vectors は、Amazon S3 とは異なるサービス名前空間、つまり <code class="code">s3vectors</code> 名前空間を使用します。したがって、S3 Vectors サービスとそのリソース専用のポリシーを設計できます。個々のベクトルインデックス、ベクトルバケット内のすべてのベクトルインデックス、またはアカウント内のすべてのベクトルバケットへのアクセスを許可するポリシーを設計できます。すべての Amazon S3 パブリックアクセスブロック設定は、ベクトルバケットに対して常に有効になっており、無効にすることはできません。</p>
+         
+
+         
+            <h3 id="s3-vectors-aws-integration">AWS サービスとの統合</h3>
+
+            <p>S3 Vectors は他の AWS サービスと統合して、ベクトル処理機能を強化します。</p>
+
+            <div class="itemizedlist">
+                 
+                 
+                 
+            <ul class="itemizedlist"><li class="listitem">
+                    <p><b><a href="https://aws.amazon.com/opensearch-service/" rel="noopener noreferrer" target="_blank"><span>Amazon OpenSearch Service</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a></b> - OpenSearch API オペレーションを引き続き使用しながら、ベクトルストレージコストを最適化します。これは、ハイブリッド検索、集計、高度なフィルタリング、ファセット検索などの高度な検索機能を必要とするワークロードに最適です。S3 ベクトルインデックスのスナップショットを Amazon OpenSearch Serverless にエクスポートして、高 QPS および低レイテンシーのベクトル検索を行うこともできます。</p>
+                </li><li class="listitem">
+                    <p><b><a href="https://aws.amazon.com/bedrock/knowledge-bases/" rel="noopener noreferrer" target="_blank"><span>Amazon Bedrock ナレッジベース</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a></b> - S3 Vectors のベクトルインデックスをベクトルストアとして選択して、検索拡張生成 (RAG) アプリケーションのストレージコストを節約します。</p>
+                </li><li class="listitem">
+                    <p><b><a href="https://aws.amazon.com/bedrock/unifiedstudio/" rel="noopener noreferrer" target="_blank"><span>SageMaker Unified Studio の Amazon Bedrock</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a></b> - S3 Vectors をベクトルストアとして使用してナレッジベースを開発およびテストします。</p>
+                </li></ul></div>
+
+         
+
+
+    <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="警告" /> <strong>ブラウザで JavaScript が無効になっているか、使用できません。</strong></p><p>AWS ドキュメントを使用するには、JavaScript を有効にする必要があります。手順については、使用するブラウザのヘルプページを参照してください。</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">ドキュメントの表記規則</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./s3-tables-managing-cloudwatch-metrics.html">CloudWatch メトリクスの管理 </div><div id="next" class="next-link" accesskey="n" href="./s3-vectors-getting-started.html">チュートリアル: S3 Vectors の開始方法</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">このページは役に立ちましたか? - はい</div><div class="content"><p>ページが役に立ったことをお知らせいただき、ありがとうございます。</p><p>お時間がある場合は、何が良かったかお知らせください。今後の参考にさせていただきます。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">このページは役に立ちましたか? - いいえ</div><div class="content"><p>このページは修正が必要なことをお知らせいただき、ありがとうございます。ご期待に沿うことができず申し訳ありません。</p><p>お時間がある場合は、ドキュメントを改善する方法についてお知らせください。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

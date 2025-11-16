@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ja-JP"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>チュートリアル: S3 Vectors の開始方法 - Amazon Simple Storage Service</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="s3-vectors-getting-started" /><meta name="default_state" content="s3-vectors-getting-started" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" /><meta name="description" content="このチュートリアルでは、Amazon S3 コンソールの AWS リージョンで S3 ベクトルバケットとベクトルインデックスを作成します。次に、Amazon Bedrock 埋め込みモデルを使用してデータのベクトル埋め込みを生成し、ベクトルインデックスに保存してセマンティック検索を実行します。" /><meta name="deployment_region" content="IAD" /><meta name="product" content="Amazon Simple Storage Service" /><meta name="guide" content="ユーザーガイド" /><meta name="abstract" content="Amazon Simple Storage Service (Amazon S3) を使用して、任意の量のデータをどこからでも保存および取得する方法について説明します。このガイドでは、Amazon S3 のバケット、オブジェクト、関連設定などの概念について説明し、一般的なオペレーションのコード例をいくつか示します。" /><meta name="guide-locale" content="ja_jp" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-getting-started.html" hreflang="x-default" /><meta name="feedback-item" content="S3" /><meta name="this_doc_product" content="Amazon Simple Storage Service" /><meta name="this_doc_guide" content="ユーザーガイド" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'s3'}"></script><meta id="panorama-serviceSubSection" value="ユーザーガイド" /><meta id="panorama-serviceConsolePage" value="チュートリアル: S3 Vectors の開始方法" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>チュートリアル: S3 Vectors の開始方法 - Amazon Simple Storage Service</title><meta name="pdf" content="s3-userguide.pdf#s3-vectors-getting-started" /><meta name="rss" content="s3-userguide-rss-updates.rss" /><meta name="forums" content="https://repost.aws/ja/tags/TADSTjraA0Q4-a1dxk6eUYaw" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html" /><meta name="keywords" content="S3,Amazon S3,S3 ユーザーガイド,Amazon S3 ユーザーガイド,Amazon ユーザーガイド,s3 バケット,s3 オブジェクト,クラウドストレージ,データストレージ,S3 Vectors,ベクトルストレージ,類似度検索,ベクトルバケット,ベクトルインデックス" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "Amazon Simple Storage Service (S3)",
+        "item" : "https://docs.aws.amazon.com/s3/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "ユーザーガイド",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "S3 Vectors とベクトルバケットの操作",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "チュートリアル: S3 Vectors の開始方法",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="s3-userguide.pdf#s3-vectors-getting-started" target="_blank" rel="noopener noreferrer" title="PDF を開く"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">ドキュメント</a><a href="/s3/index.html">Amazon Simple Storage Service (S3)</a><a href="Welcome.html">ユーザーガイド</a></div><div id="page-toc-src"><a href="#s3-vectors-create-bucket-tutorial">ステップ 1: コンソールでベクトルバケットを作成する</a><a href="#s3-vectors-create-index-tutorial">ステップ 2: コンソールでベクトルバケットのベクトルインデックスを作成する</a><a href="#s3-vectors-insert-vectors-tutorial">ステップ 3: SDK for Python (Boto3) を使用してベクトルインデックスにベクトルを挿入する</a><a href="#s3-vectors-query-vectors-tutorial">ステップ 4. SDK for Python (Boto3) を使用し、ベクトルインデックスのベクトルをクエリする</a><a href="#s3-vectors-embed-CLI-tutorial">(オプション) S3 Vectors Embed CLI を使用してベクトル埋め込みの作成を自動化する</a><a href="#s3-vectors-bedrock-kb-tutorial">(オプション) S3 ベクトルと Amazon Bedrock ナレッジベースを統合する</a><a href="#s3-vectors-opensearch-tutorial">(オプション) S3 ベクトルと Amazon OpenSearch を統合する</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="s3-vectors-getting-started">チュートリアル: S3 Vectors の開始方法</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>Amazon S3 Vectors は Amazon Simple Storage Service のプレビューリリースであり、変更される可能性があります。</p></div></div><p>このチュートリアルでは、Amazon S3 コンソールの AWS リージョンで S3 ベクトルバケットとベクトルインデックスを作成します。次に、Amazon Bedrock 埋め込みモデルを使用してデータのベクトル埋め込みを生成し、ベクトルインデックスに保存してセマンティック検索を実行します。</p><p>開始するには、AWS アカウントをまだお持ちでない場合はサインアップします。アカウントの設定の詳細については、「<a href="./GetStartedWithS3.html">Amazon S3 の開始方法</a>」を参照してください。</p><div class="highlights" id="inline-topiclist"><h6>トピック</h6><ul><li><p><a href="#s3-vectors-create-bucket-tutorial">ステップ 1: コンソールでベクトルバケットを作成する</a></p></li><li><p><a href="#s3-vectors-create-index-tutorial">ステップ 2: コンソールでベクトルバケットのベクトルインデックスを作成する</a></p></li><li><p><a href="#s3-vectors-insert-vectors-tutorial">ステップ 3: SDK for Python (Boto3) を使用してベクトルインデックスにベクトルを挿入する</a></p></li><li><p><a href="#s3-vectors-query-vectors-tutorial">ステップ 4. SDK for Python (Boto3) を使用し、ベクトルインデックスのベクトルをクエリする</a></p></li><li><p><a href="#s3-vectors-embed-CLI-tutorial">(オプション) S3 Vectors Embed CLI を使用してベクトル埋め込みの作成を自動化する</a></p></li><li><p><a href="#s3-vectors-bedrock-kb-tutorial">(オプション) S3 ベクトルと Amazon Bedrock ナレッジベースを統合する</a></p></li><li><p><a href="#s3-vectors-opensearch-tutorial">(オプション) S3 ベクトルと Amazon OpenSearch を統合する</a></p></li></ul></div>
+    <h2 id="s3-vectors-create-bucket-tutorial">ステップ 1: コンソールでベクトルバケットを作成する</h2>
+
+    <p>S3 ベクトルバケットは、ベクトルの保存とクエリ専用に構築された Amazon S3 バケットの一種です。専用の API オペレーションを使用してベクトルデータの書き込みとクエリを行います。IAM アイデンティティベースのポリシーやリソースベースのポリシーなどのアクセスコントロールメカニズムを使用して、ベクトルデータへのアクセスを制御できます。</p>
+
+    <p>このステップでは、Amazon S3 コンソールを使用して最初のベクトルバケットを作成します。ベクトルバケットを作成するその他の方法については、「<a href="./s3-vectors-buckets-create.html">ベクトルバケットの作成</a>」を参照してください。</p>
+
+
+
+     
+      <h3 id="s3-vectors-create-bucket-procedure-tutorial">ベクトルバケットを作成するには</h3>
+
+      <div class="procedure"><ol><li><p>AWS Management Console にサインインし、Amazon S3 コンソール <a href="https://console.aws.amazon.com/s3/" rel="noopener noreferrer" target="_blank"><span>https://console.aws.amazon.com/s3/</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> を開きます。</p></li><li>
+          <p>左のナビゲーションペインで、<b>[ベクトルバケット]</b> を選択します。</p>
+        </li><li>
+          <p><b>[ベクトルバケット]</b> のページで、<b>[ベクトルバケットを作成]</b> をクリックします。</p>
+        </li><li>
+          <p><b>[ベクトルバケットを作成]</b> ページで、<b>[ベクトルバケット名]</b> フィールドに名前を入力します。このチュートリアルでは、ベクトルバケット名として <code class="replaceable">media-embeddings</code> を使用します。ベクトルバケット名は 3～63 文字で、AWS リージョン内で一意であることが必要です。有効な文字は、小文字 (a～z)、数字 (0～9)、ハイフン (-) です。</p>
+          <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>バケットを作成した後は、ベクトルバケット名を変更することはできません。</p></div></div>
+        </li><li>
+          <p><b>[暗号化]</b> で、<b>[暗号化タイプを指定する]</b> を選択します。暗号化タイプに、<b>AWS Key Management Service キーを用いたサーバー側の暗号化 (SSE-KMS)</b>、またはデフォルトの <b>Amazon S3 マネージドキーを用いたサーバー側の暗号化 (SSE-S3)</b> を指定できます。このチュートリアルでは、<b>Amazon S3 マネージドキーを用いたサーバー側の暗号化 (SSE-S3)</b> を選択します。ベクトルバケットの暗号化設定の詳細については、「<a href="./s3-vectors-data-encryption.html">S3 Vectors のデータ保護と暗号化</a>」を参照してください。</p>
+          <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>ベクトルバケットを作成した後は、暗号化タイプを変更することはできません。</p></div></div>
+        </li><li>
+          <p><b>[ベクトルバケットを作成]</b> を選択します。</p>
+        </li></ol></div>
+
+
+     
+
+
+   
+    <h2 id="s3-vectors-create-index-tutorial">ステップ 2: コンソールでベクトルバケットのベクトルインデックスを作成する</h2>
+    <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>ベクトルインデックス設定のパラメータを慎重に選択します。ベクトルインデックスを作成した後、ベクトルインデックス名、ディメンション、距離メトリクス、またはフィルタリング不可能なメタデータキーを更新することはできません。これらの値を変更するには、新しいベクトルインデックスを作成する必要があります。</p></div></div>
+    <p>このステップでは、ベクトルバケットにベクトルインデックスを作成します。ベクトルインデックスは、ベクトル埋め込みの保存とクエリに使用されます。ベクトルインデックスの詳細については、「<a href="./s3-vectors-indexes.html">ベクトルインデックス</a>」を参照してください。</p>
+
+
+     
+      <h3 id="s3-vectors-create-index-procedure-tutorial">ベクトルインデックスを作成するには</h3>
+
+      <div class="procedure"><ol><li>
+          <p>Amazon S3 コンソールの<b>ベクトルバケット</b>のリストで、新しく作成されたベクトルバケットに移動します。</p>
+        </li><li>
+          <p><b>[ベクトルインデックスを作成]</b> を選択します。</p>
+        </li><li>
+          <p><b>[ベクトルインデックスの作成]</b> ページで、<b>[ベクトルインデックス名]</b> フィールドに名前を入力します。このチュートリアルでは、ベクトルインデックス名として <code class="replaceable">movies</code> を使用します。</p>
+          <p>ベクトルインデックス名は 3～63 文字で、ベクトルバケット内で一意であることが必要です。有効な文字は、小文字 (a～z)、数字 (0～9)、ハイフン (-)、ドット (.) です。</p>
+          <p>インデックスを作成した後は、ベクトルインデックス名を変更することはできません。</p>
+        </li><li>
+          <p><b>[ディメンション]</b> で、ベクトル埋め込みモデルによって各ベクトル内に生成される数を決定する 1～4096 の数値を指定します。埋め込みモデルは、データ (テキスト、画像など) を数値ベクトルに変換する特殊な機械学習 (ML) モデルです。埋め込みモデルは通常、500-2000 の間のディメンションを出力し、各ディメンションは浮動小数点数になります。このチュートリアルでは、Amazon Bedrock の Titan Text v2 埋め込みモデルを使用します。この埋め込みモデルでは、1024 次元のベクトルをデフォルトとして使用するため、ベクトルインデックスのディメンションを <code class="code">1024</code> に設定します。</p>
+          <p>インデックスを作成した後は、ディメンション値を変更することはできません。埋め込みモデルの推奨事項に基づいて、慎重にディメンション値を指定します。</p>
+        </li><li>
+          <p><b>[距離メトリクス]</b> で、<b>[コサイン]</b> (角度類似度を測定する) または <b>[ユークリッド]</b> (直線距離を測定する) を距離メトリクスとして選択し、クエリ中にベクトル間の類似度を計算する方法を定義します。このチュートリアルでは、<b>[コサイン]</b> を選択します。</p>
+          <p>インデックスを作成した後は、距離メトリクスを変更することはできません。埋め込みモデルの推奨事項に基づいて、慎重に距離メトリクスを選択します。</p>
+        </li><li>
+          <p><b>[追加の設定] (オプション)</b> で、フィルタリングが可能でないメタデータキーを指定して、ベクトル埋め込みとともに補足情報を保存できます。</p>
+          <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p> インデックスの作成後にベクトルデータを挿入するときに、フィルタリングが可能なメタデータをキーと値のペアとして各ベクトルにアタッチできます。デフォルトでは、ベクトルにアタッチされているすべてのメタデータキーはフィルタリング可能で、類似度クエリでフィルターとして使用できます。ベクトルインデックスの作成中にフィルタリング不可として指定されたメタデータキーのみがフィルタリングから除外されます。</p></div></div>
+          <p>フィルタリングが可能でないメタデータキーはそれぞれ 1～63 文字で、ベクトルインデックス内で一意である必要があります。これらのキーは、類似度クエリ中にフィルタリングする必要のない参照情報を保存するのに役立ちます。例えば、テキスト埋め込みを使用する場合は、元のテキストチャンクを参照目的で保持できます。このチュートリアルでは、ベクトル埋め込みを作成するテキストデータを保存する <code class="code">source_text</code> という名前のフィルタリングが可能ではないメタデータキーを追加します。</p>
+          
+            <p>インデックスを作成した後は、フィルタリングが可能ではないメタデータキーを更新することはできません。メタデータの構造を慎重に計画します。</p>
+          
+        </li><li>
+          <p><b>[ベクトルインデックスを作成]</b> を選択します。</p>
+        </li></ol></div>
+      <p>新しいベクトルインデックスがバケット内に表示されることを確認します。</p>
+     
+
+
+   
+    <h2 id="s3-vectors-insert-vectors-tutorial">ステップ 3: SDK for Python (Boto3) を使用してベクトルインデックスにベクトルを挿入する</h2>
+
+    <p>ベクトルを挿入、一覧表示、クエリするには、AWS SDK、AWS CLI、または Amazon S3 REST API を使用します。</p>
+    <p>このステップでは、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_PutVectors.html">PutVectors</a> API オペレーションを使用してベクトルインデックスにベクトル埋め込みを挿入します。</p>
+    <p> まず、選択した埋め込みモデルを使用してベクトル埋め込みを生成する必要があります。Amazon Bedrock を使用する場合は、<a href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html">InvokeModel</a> API オペレーションを使用して任意の埋め込みモデルを指定して埋め込みを生成します。また、単一のコマンドでベクトル埋め込みの生成と挿入を行うには、「<a href="#s3-vectors-embed-CLI-tutorial">(オプション) S3 Vectors Embed CLI を使用してベクトル埋め込みの作成を自動化する</a>」を参照してください。</p>
+    <p>以下のコード例では、AWS SDK for Python (Boto3) を使用して Amazon Bedrock から Titan Text Embeddings V2 モデルを使用して 1024 次元のベクトル埋め込みを生成し、<code class="code">PutVectors</code> API を使用してベクトルインデックスに保存します。各ベクトルに加えて、キーと値のペアをフィルタリング可能なメタデータとしてアタッチします。さらに、<code class="replaceable">source_text</code> という名前のフィルタリングが可能ではないメタデータキーを使用して、各ベクトルが派生する元のテキストを保持します。リクエストスループットを最大化し、速度と効率を最適化するには、ベクトルをバッチで挿入および削除することをお勧めします。詳細については、「<a href="./s3-vectors-best-practices.html">S3 Vectors のベストプラクティス</a>」を参照してください。</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="コピー"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (Python)--><code class="Python "># Populate a vector index with embeddings from Amazon Titan Text Embeddings V2.
+import boto3
+import json
+
+# Create Bedrock Runtime and S3 Vectors clients in the AWS Region of your choice. 
+bedrock = boto3.client("bedrock-runtime", region_name="us-west-2")
+s3vectors = boto3.client("s3vectors", region_name="us-west-2")
+
+# Texts to convert to embeddings.
+texts = [
+    "Star Wars: A farm boy joins rebels to fight an evil empire in space", 
+    "Jurassic Park: Scientists create dinosaurs in a theme park that goes wrong",
+    "Finding Nemo: A father fish searches the ocean to find his lost son"
+]
+
+# Generate vector embeddings.
+embeddings = []
+for text in texts:
+    response = bedrock.invoke_model(
+        modelId="amazon.titan-embed-text-v2:0",
+        body=json.dumps(<span>{</span>"inputText": text})
+    )
+
+    # Extract embedding from response.
+    response_body = json.loads(response["body"].read())
+    embeddings.append(response_body["embedding"])
+
+# Write embeddings into vector index with metadata.
+s3vectors.put_vectors(
+    vectorBucketName="media-embeddings",   
+    indexName="movies",   
+    vectors=[
+        <span>{</span>
+            "key": "Star Wars",
+            "data": <span>{</span>"float32": embeddings[0]},
+            "metadata": <span>{</span>"source_text": texts[0], "genre":"scifi"}
+        },
+        <span>{</span>
+            "key": "Jurassic Park",
+            "data": <span>{</span>"float32": embeddings[1]},
+            "metadata": <span>{</span>"source_text": texts[1], "genre":"scifi"}
+        },
+        <span>{</span>
+            "key": "Finding Nemo",
+            "data": <span>{</span>"float32": embeddings[2]},
+            "metadata": <span>{</span>"source_text": texts[2], "genre":"family"}
+        }
+    ]
+)</code></pre>
+    
+
+ 
+
+   
+    <h2 id="s3-vectors-query-vectors-tutorial">ステップ 4. SDK for Python (Boto3) を使用し、ベクトルインデックスのベクトルをクエリする</h2>
+    <p>ベクトル埋め込みをベクトルインデックスに保存した後、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_QueryVectors.html">QueryVectors</a> API オペレーションを使用して類似度検索を実行できます。</p>
+     <p>まず、<a href="#s3-vectors-insert-vectors-tutorial">ステップ 3: SDK for Python (Boto3) を使用してベクトルインデックスにベクトルを挿入する</a> の挿入中に使用されるのと同じ埋め込みモデルを使用して、クエリベクトル埋め込みを生成する必要があります。このチュートリアルでは、SDK for Python (Boto3) を用いて Amazon Bedrock の Titan Text Embeddings V2 モデルを使用します。</p>
+    <p>類似度検索を実行して、最も近いベクトルを返すことができます。類似度検索では、必要に応じてメタデータキーを使用してフィルタリングし、セマンティックの関連性を維持しながら、特定の条件に基づいて結果を絞り込むことができます。</p>
+    <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="コピー"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (Python)--><code class="Python "># Query a vector index with an embedding from Amazon Titan Text Embeddings V2.
+import boto3 
+import json 
+
+# Create Bedrock Runtime and S3 Vectors clients in the AWS Region of your choice. 
+bedrock = boto3.client("bedrock-runtime", region_name="us-west-2")
+s3vectors = boto3.client("s3vectors", region_name="us-west-2") 
+
+# Query text to convert to an embedding. 
+input_text = "adventures in space"
+
+# Generate the vector embedding.
+response = bedrock.invoke_model(
+    modelId="amazon.titan-embed-text-v2:0",
+    body=json.dumps(<span>{</span>"inputText": input_text})
+) 
+
+# Extract embedding from response.
+model_response = json.loads(response["body"].read())
+embedding = model_response["embedding"]
+
+# Query vector index.
+response = s3vectors.query_vectors(
+    vectorBucketName="media-embeddings",
+    indexName="movies",
+    queryVector=<span>{</span>"float32": embedding}, 
+    topK=3, 
+    returnDistance=True,
+    returnMetadata=True
+)
+print(json.dumps(response["vectors"], indent=2))
+
+# Query vector index with a metadata filter.
+response = s3vectors.query_vectors(
+    vectorBucketName="media-embeddings",
+    indexName="movies",
+    queryVector=<span>{</span>"float32": embedding}, 
+    topK=3, 
+    filter=<span>{</span>"genre": "scifi"},
+    returnDistance=True,
+    returnMetadata=True
+)
+print(json.dumps(response["vectors"], indent=2))
+    </code></pre>
+
+
+
+   
+    <h2 id="s3-vectors-embed-CLI-tutorial">(オプション) S3 Vectors Embed CLI を使用してベクトル埋め込みの作成を自動化する</h2>
+
+    <p>Amazon S3 Vectors Embed CLI は、S3 Vectors でのベクトル埋め込み操作のプロセスを簡素化するスタンドアロンのコマンドラインツールです。単一のコマンドで、Amazon Bedrock を使用したデータのベクトル埋め込みを作成し、S3 ベクトルインデックスへの保存とクエリを実行できます。ツールは、次のコマンドをサポートします。</p>
+    
+    <div class="itemizedlist">
+       
+       
+    <ul class="itemizedlist"><li class="listitem">
+        <p><code class="code">s3vectors-embed put</code>: テキスト、ファイルコンテンツ、または S3 オブジェクトのベクトル埋め込みを生成し、S3 ベクトルインデックスにベクトルとして保存します。</p>
+      </li><li class="listitem">
+        <p><code class="code">s3vectors-embed query</code>: クエリ入力を埋め込み、S3 ベクトルインデックスの同様のベクトルを検索します。</p>
+      </li></ul></div>
+    
+    <p>コマンドと使用の詳細については、「<a href="https://github.com/awslabs/s3vectors-embed-cli" rel="noopener noreferrer" target="_blank"><span>Amazon S3 Vectors Embed CLI GitHub リポジトリ</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>」を参照してください。</p>
+    
+
+
+   
+    <h2 id="s3-vectors-bedrock-kb-tutorial">(オプション) S3 ベクトルと Amazon Bedrock ナレッジベースを統合する</h2>
+
+    <p>ベクトルデータセットのコスト効率と長期保存のために、Amazon Bedrock ナレッジベースと S3 ベクトルを統合します。</p>
+
+     
+      <h3 id="s3-vectors-bedrock-kb-prereq-tutorial">前提条件</h3>
+
+      <p><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-console.html">前提条件</a>に従い、Amazon Bedrock ナレッジベースを作成するために必要なアクセス許可があることを確認します。</p>
+
+      <div class="itemizedlist">
+         
+         
+         
+      <ul class="itemizedlist"><li class="listitem">
+          <p>S3 Vectors と Amazon Bedrock サービスの両方に対する適切な IAM アクセス許可。S3 Vectors の IAM アクセス許可の詳細については、「<a href="./s3-vectors-access-management.html">S3 Vectors での ID およびアクセス管理</a>」を参照してください。</p>
+        </li><li class="listitem">
+          <p>ナレッジベースへの取り込み用に準備されたソースドキュメント。</p>
+        </li><li class="listitem">
+          <p>埋め込みモデルの要件についての理解。</p>
+        </li></ul></div>
+     
+
+     
+      <h3 id="s3-vectors-bedrock-kb-procedure-tutorial">コンソールで S3 Vectors を使用して Amazon Bedrock ナレッジベースを作成する</h3>
+      <p>Amazon Bedrock ナレッジベースは、フルマネージドのエンドツーエンド RAG ワークフローを提供します。S3 Vectors を使用してナレッジベースを作成すると、Amazon Bedrock は S3 データソースからデータを自動的に取得し、コンテンツをテキストブロックに変換して埋め込みを生成し、ベクトルインデックスに保存します。その後、ナレッジベースをクエリし、ソースデータから取得したチャンクに基づいてレスポンスを生成できます。</p>
+     
+      <div class="procedure"><h6>コンソールで S3 Vectors を使用して Amazon Bedrock ナレッジベースを作成するには</h6><ol><li>
+          
+          <p><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html">Amazon Bedrock アクセス許可を持つ IAM ロール</a>を使用して AWS Management Consoleにサインインし、Amazon Bedrock コンソール (<a href="https://console.aws.amazon.com/bedrock/" rel="noopener noreferrer" target="_blank"><span>https://console.aws.amazon.com/bedrock/</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>) を開きます。</p>
+        </li><li>
+          <p>左側のナビゲーションペインで <b>[ナレッジベース]</b> を選択します。</p>
+        </li><li>
+          <p><b>[ナレッジベース]</b> セクションで、<b>[作成]</b> を選択します。ドロップダウンリストで、<b>[ベクトルストアを含むナレッジベース]</b> を選択します。</p>
+        </li><li>
+          <p>このチュートリアルでは、<b>[ナレッジベース名]</b>、<b>[ナレッジベースの説明]</b>、<b>[IAM 許可]</b> をデフォルト値のままにしています。</p>
+        </li><li>
+          <p><b>[データソースタイプを選択してください]</b> で、ナレッジベースを接続するデータソースを選択します。このチュートリアルでは、<b>[Amazon S3]</b> を選択します。</p>
+        </li><li>
+          <p>(オプション) <b>[タグ]</b> または <b>[アプリケーションログ]</b> を指定します。</p>
+        </li><li>
+          <p>[<b>次へ</b>] を選択します。</p>
+        </li><li>
+          <p>このチュートリアルでは、<b>[データソースを設定]</b> ページの <b>[データソース名]</b>、<b>[データソースの場所]</b>、<b>[解析戦略]</b>、<b>[チャンキング戦略]</b> をデフォルト設定のままにしておきます。</p>
+        </li><li>
+          <p><b>S3 URI</b> で、ソースファイルを含む S3 汎用バケットを入力するか、<b>[S3 をブラウズ]</b> を選択して S3 汎用バケットを選択します。</p>
+        </li><li>
+          <p>暗号化された S3 データの場合、<b>[S3 データのカスタマーマネージド KMS キーを追加]</b> を選択し、カスタマーマネージド KMS キーを指定します。</p>
+        </li><li>
+          <p><b>[次へ]</b> を選択して、<b>[埋め込みモデル]</b> と <b>[ベクトルストア]</b> オプションを指定する次のステップに進みます。</p>
+        </li><li>
+          <p><b>[埋め込みモデル]</b> セクションで、<b>[モデルを選択]</b> を選択し、S3 Vectors との使用に互換性のある埋め込みモデルを選択します。浮動小数点埋め込みを使用する必要があります。バイナリタイプはサポートされていません。</p>
+        </li><li>
+          <p>(オプション) <b>[追加設定]</b> セクションを展開すると、次の設定オプションが表示されます (すべてのモデルがすべての設定をサポートしているわけではありません)。</p>
+          <div class="itemizedlist">
+             
+             
+          <ul class="itemizedlist"><li class="listitem">
+              <p><b>埋め込みタイプ</b> – データを浮動小数点 (float32) ベクトル埋め込み (より正確だがコストがかかる) またはバイナリベクトル埋め込み (精度は低下するがコストが低い) に変換するかどうか。S3 ベクトルと統合するには、<b>[浮動小数点ベクトル埋め込み]</b> を選択する必要があります。</p>
+            </li><li class="listitem">
+              <p><b>ベクトルディメンション</b> – 埋め込みモデルの推奨ディメンションサイズを選択します。</p>
+            </li></ul></div>
+        </li><li>
+          <p><b>[ベクトルストア]</b> セクションで、推奨される方法の <b>[新しいベクトルストアをクイック作成]</b> を新しいベクトルバケットの自動セットアップに選択するか、または <b>[既存のベクトルストアを使用]</b> を選択し、使用できる場合は既存のベクトルバケットを使用します。既存のベクトルストアフローの使用については、「<em>Amazon Bedrock ユーザーガイド</em>」の「<a href="https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-setup.html">Prerequisites for using a vector store you created for a knowledge base</a>」を参照してください。</p>
+        </li><li>
+          <p><b>追加設定</b> - デフォルトでは、ベクトルバケットは Amazon S3 マネージドキーによるサーバー側の暗号化 (SSE-S3) を使用します。AWS Key Management Service キー (SSE-KMS) によるサーバー側の暗号化に独自の KMS キーを使用することを選択して、暗号化設定の制御を強化できます。</p>
+        </li><li>
+          <p><b>[次へ]</b> を選択してナレッジベースの詳細を確認し、<b>[ナレッジベースを作成]</b> を選択します。</p>
+        </li></ol></div>
+
+      <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>ナレッジベースの作成にかかる時間は、特定の設定によって異なります。ナレッジベースの作成が完了すると、ナレッジベースのステータスは準備完了または利用可能な状態に変更されます。ナレッジベースの準備ができて使用可能になったら、最初または必要に応じてデータソースの同期が行われ、コンテンツが最新の状態に保たれます。データソースを同期するには、コンソールでナレッジベースを選択し、データソースの概要セクションで <b>[同期]</b> を選択します。</p></div></div>
+     
+   
+    <h2 id="s3-vectors-opensearch-tutorial">(オプション) S3 ベクトルと Amazon OpenSearch を統合する</h2>
+
+    <p><a href="https://aws.amazon.com/opensearch-service/" rel="noopener noreferrer" target="_blank"><span>Amazon OpenSearch Service</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> は、AWS クラウドにおける OpenSearch のデプロイ、スケーリング、オペレーションを簡素化する完全マネージド型サービスです。S3 Vectors と OpenSearch 間には 2 つの統合があります。1 つは、S3 Vectors から OpenSearch Serverless にベクトルデータをエクスポートして、高性能な検索機能を提供することです。もう 1 つは、S3 Vectors を OpenSearch 内のコスト効率の高いストレージエンジンとして使用し、OpenSearch の機能へのアクセスを維持することです。</p>
+
+    <p>詳細については、「<a href="./s3-vectors-opensearch.html">OpenSearch Service での S3 Vectors の使用</a>」を参照してください。</p>
+  <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="警告" /> <strong>ブラウザで JavaScript が無効になっているか、使用できません。</strong></p><p>AWS ドキュメントを使用するには、JavaScript を有効にする必要があります。手順については、使用するブラウザのヘルプページを参照してください。</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">ドキュメントの表記規則</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./s3-vectors.html">S3 Vectors とベクトルバケットの操作</div><div id="next" class="next-link" accesskey="n" href="./s3-vectors-buckets.html">ベクトルバケット</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">このページは役に立ちましたか? - はい</div><div class="content"><p>ページが役に立ったことをお知らせいただき、ありがとうございます。</p><p>お時間がある場合は、何が良かったかお知らせください。今後の参考にさせていただきます。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">このページは役に立ちましたか? - いいえ</div><div class="content"><p>このページは修正が必要なことをお知らせいただき、ありがとうございます。ご期待に沿うことができず申し訳ありません。</p><p>お時間がある場合は、ドキュメントを改善する方法についてお知らせください。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-getting-started.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ja-JP"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>OpenSearch Service での S3 Vectors の使用 - Amazon Simple Storage Service</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="s3-vectors-opensearch" /><meta name="default_state" content="s3-vectors-opensearch" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" /><meta name="description" content="Amazon S3 Vectors は OpenSearch と統合され、柔軟なベクトルストレージと検索機能を提供します。この統合により、OpenSearch の高度な検索機能を活用しながら、S3 Vectors にベクトルを保存することでコストを最適化できます。" /><meta name="deployment_region" content="IAD" /><meta name="product" content="Amazon Simple Storage Service" /><meta name="guide" content="ユーザーガイド" /><meta name="abstract" content="Amazon Simple Storage Service (Amazon S3) を使用して、任意の量のデータをどこからでも保存および取得する方法について説明します。このガイドでは、Amazon S3 のバケット、オブジェクト、関連設定などの概念について説明し、一般的なオペレーションのコード例をいくつか示します。" /><meta name="guide-locale" content="ja_jp" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-opensearch.html" hreflang="x-default" /><meta name="feedback-item" content="S3" /><meta name="this_doc_product" content="Amazon Simple Storage Service" /><meta name="this_doc_guide" content="ユーザーガイド" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'s3'}"></script><meta id="panorama-serviceSubSection" value="ユーザーガイド" /><meta id="panorama-serviceConsolePage" value="OpenSearch Service での S3 Vectors の使用" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>OpenSearch Service での S3 Vectors の使用 - Amazon Simple Storage Service</title><meta name="pdf" content="s3-userguide.pdf#s3-vectors-opensearch" /><meta name="rss" content="s3-userguide-rss-updates.rss" /><meta name="forums" content="https://repost.aws/ja/tags/TADSTjraA0Q4-a1dxk6eUYaw" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html" /><meta name="keywords" content="S3,Amazon S3,S3 ユーザーガイド,Amazon S3 ユーザーガイド,Amazon ユーザーガイド,s3 バケット,s3 オブジェクト,クラウドストレージ,データストレージ,S3 Vectors,ベクトルストレージ,類似度検索,ベクトルバケット,ベクトルインデックス" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "Amazon Simple Storage Service (S3)",
+        "item" : "https://docs.aws.amazon.com/s3/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "ユーザーガイド",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "S3 Vectors とベクトルバケットの操作",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "他の AWS サービスで S3 Vectors を使用する",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-integration.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 6,
+        "name" : "OpenSearch Service での S3 Vectors の使用",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-integration.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="s3-userguide.pdf#s3-vectors-opensearch" target="_blank" rel="noopener noreferrer" title="PDF を開く"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">ドキュメント</a><a href="/s3/index.html">Amazon Simple Storage Service (S3)</a><a href="Welcome.html">ユーザーガイド</a></div><div id="page-toc-src"><a href="#s3-vectors-opensearch-export">OpenSearch Serverless へのエクスポート</a><a href="#s3-vectors-opensearch-engine">S3 Vectors エンジンを使用した OpenSearch</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="s3-vectors-opensearch">OpenSearch Service での S3 Vectors の使用</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>Amazon S3 Vectors は Amazon Simple Storage Service のプレビューリリースであり、変更される可能性があります。</p></div></div><p>Amazon S3 Vectors は OpenSearch と統合され、柔軟なベクトルストレージと検索機能を提供します。この統合により、OpenSearch の高度な検索機能を活用しながら、S3 Vectors にベクトルを保存することでコストを最適化できます。</p><p>S3 Vectors と OpenSearch には 2 つの統合があります。1 つは、S3 Vectors から OpenSearch Serverless にベクトルデータをエクスポートして、高性能な検索機能を提供することです。もう 1 つは、OpenSearch 機能へのアクセスを維持しながら、OpenSearch 内のコスト効率の高いストレージエンジンとして S3 Vectors を使用します。</p>
+    <h2 id="s3-vectors-opensearch-export">OpenSearch Serverless へのエクスポート</h2>
+    <p>S3 Vectors から OpenSearch Serverless コレクションにベクトルインデックスをエクスポートして、高性能検索オペレーション、ハイブリッド検索、集計、高度なフィルタリング、ファセット検索を行うことができます。エクスポートすると、データは S3 Vectors 内に残ったまま OpenSearch Serverless にコピーされます。つまり、この間は両方のサービスに対して料金が発生します。</p>
+
+     
+      <h3 id="s3-vectors-opensearch-export-when">この統合を使用するタイミング</h3>
+      <p>以下が必要な場合は、S3 Vectors から OpenSearch Serverless へのエクスポートを検討してください。</p>
+      <div class="itemizedlist">
+         
+         
+         
+         
+      <ul class="itemizedlist"><li class="listitem">
+          <p>ベクトル類似性とキーワード検索を組み合わせた<b>ハイブリッド検索機能</b>。</p>
+        </li><li class="listitem">
+          
+          <p>要求の厳しいワークロードに対する<b>高いクエリスループット</b>。</p>
+        </li><li class="listitem">
+          <p>ミリ秒の応答時間を必要とするリアルタイムアプリケーションの<b>低レイテンシーのレスポンス</b>。</p>
+        </li><li class="listitem">
+          <p>集計、ファセット検索、複雑なフィルタリングを含む<b>高度な分析</b>。</p>
+        </li></ul></div>
+     
+
+     
+      <h3 id="s3-vectors-opensearch-export-prereq">前提条件</h3>
+      <p>OpenSearch で S3 Vectors を使用する前に、以下があることを確認してください。</p>
+      <div class="itemizedlist">
+         
+         
+         
+      <ul class="itemizedlist"><li class="listitem">
+          <p>データを含むベクトルインデックスを持つ既存の S3 ベクトルバケット。</p>
+        </li><li class="listitem">
+          <p>S3 Vectors と OpenSearch Service の両方に対する適切な IAM アクセス許可。</p>
+        </li><li class="listitem">
+          <p>適切な統合方法を選択するためのパフォーマンス要件の理解。</p>
+        </li></ul></div>
+     
+
+     
+      <h3 id="s3-vectors-opensearch-export-getting-started">はじめに</h3>
+      <p><b>AWS Management Console の使用</b></p>
+
+      <div class="procedure"><h6>ベクトルデータを OpenSearch にエクスポートするには</h6><ol><li><p>AWS Management Console にサインインし、Amazon S3 コンソール <a href="https://console.aws.amazon.com/s3/" rel="noopener noreferrer" target="_blank"><span>https://console.aws.amazon.com/s3/</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> を開きます。</p></li><li>
+          <p>ナビゲーションペインで、<b>[ベクトルバケット]</b> を選択します。</p>
+        </li><li>
+          <p>ベクトルバケットのリストで、エクスポートするベクトルデータを含むバケットの名前を選択します。</p>
+        </li><li>
+          <p><b>[ベクトルインデックス]</b> で、エクスポートするベクトルインデックスの横にあるラジオボタンを選択します。</p>
+        </li><li>
+          <p><b>[詳細検索のエクスポート]</b> を選択し、<b>[OpenSearch にエクスポート]</b> を選択します。</p>
+        </li></ol></div>
+
+      <div class="awsdocs-note awsdocs-important"><div class="awsdocs-note-title"><awsui-icon name="status-warning" variant="error"></awsui-icon><h6>重要</h6></div><div class="awsdocs-note-text"><div class="itemizedlist">
+           
+           
+
+        <ul class="itemizedlist"><li class="listitem">
+            <p><b>ポイントインタイムエクスポート</b>: エクスポートは、エクスポートの開始までのデータをキャプチャします。OpenSearch への取り込み中にベクトルデータを更新した場合、すべての更新が OpenSearch に反映されるわけではありません。</p>
+          </li><li class="listitem">
+            <p><b>1 回限りのオペレーション</b>: これは 1 回限りのエクスポートであり、S3 Vectors データと同期されません。後続の変更をキャプチャするには、手動で再エクスポートする必要があります。</p>
+          </li></ul></div></div></div>
+
+      <p>次に、S3 Vectors と Amazon OpenSearch Service の統合を設定および管理するには、主に OpenSearch コンソールを使用します。</p>
+
+      <div class="procedure"><h6>OpenSearch へのエクスポートを表示するには</h6><ol><li><p>AWS Management Console にサインインし、Amazon S3 コンソール <a href="https://console.aws.amazon.com/s3/" rel="noopener noreferrer" target="_blank"><span>https://console.aws.amazon.com/s3/</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> を開きます。</p></li><li>
+          <p>ナビゲーションペインで、<b>[ベクトルバケット]</b> を選択します。</p>
+        </li><li>
+          <p>ベクトルバケットのリストで、エクスポートするベクトルデータを含むバケットの名前を選択します。</p>
+        </li><li>
+          <p><b>[ベクトルインデックス]</b> で、<b>[詳細検索のエクスポート]</b> を選択し、<b>[OpenSearch へのすべてのエクスポートを表示]</b> を選択します。</p>
+        </li></ol></div>
+
+      <p>次に、OpenSearch コンソールを使用して OpenSearch へのエクスポートを表示します。</p>
+
+      <p>OpenSearch Serverless コレクションの作成と管理の詳細については、「<a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-collections.html">Amazon OpenSearch Service デベロッパーガイド</a>」の「<em>Creating and managing Amazon OpenSearch Serverless collections</em>」を参照してください。</p>
+     
+   
+    <h2 id="s3-vectors-opensearch-engine">S3 Vectors エンジンを使用した OpenSearch</h2>
+    <p>S3 Vectors を <a href="https://aws.amazon.com/opensearch-service/features/managed/" rel="noopener noreferrer" target="_blank"><span>Amazon OpenSearch マネージドクラスター</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>の基盤となるストレージエンジンとして使用でき、OpenSearch 機能を維持しながらコスト最適化されたベクトルストレージを提供できます。</p>
+
+     
+      <h3 id="s3-vectors-opensearch-engine-when">この統合を使用するタイミング</h3>
+      <p>以下が必要な場合は、S3 Vectors エンジンで OpenSearch を使用することを検討してください。</p>
+      <div class="itemizedlist">
+         
+         
+         
+         
+         
+      <ul class="itemizedlist"><li class="listitem">
+          <p>ベクトル類似性とキーワード検索を組み合わせた<b>ハイブリッド検索機能</b>。</p>
+        </li><li class="listitem">
+          <p>使用頻度が低い、または散発的な使用パターンを持つ可能性のある<b>低いクエリスループット</b>。</p>
+        </li><li class="listitem">
+          <p>コスト削減と引き換えに応答時間が長くなる可能性があるアプリケーションでの<b>高いレイテンシー耐性</b>。</p>
+        </li><li class="listitem">
+          <p>集計、ファセット検索、複雑なフィルタリングを含む<b>高度な分析</b>。</p>
+        </li><li class="listitem">
+          <p>費用対効果の高いベクトルストレージで拡張する<b>既存の OpenSearch ワークフロー</b>。</p>
+        </li></ul></div>
+     
+
+     
+      <h3 id="s3-vectors-opensearch-engine-prereq">前提条件</h3>
+      <p>S3 Vectors エンジンで OpenSearch を使用する前に、以下があることを確認してください。</p>
+      <div class="itemizedlist">
+         
+         
+      <ul class="itemizedlist"><li class="listitem">
+          <p>既存の OpenSearch マネージドドメイン。詳細については、「<em>Amazon OpenSearch Service デベロッパーガイド</em>」の「 <a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/createupdatedomains.html">Amazon OpenSearch Service ドメインの作成と管理</a>」を参照してください。</p>
+        </li><li class="listitem">
+          <p>適切な統合方法を選択するためのパフォーマンス要件の理解。</p>
+        </li></ul></div>
+     
+
+     
+      <h3 id="s3-vectors-opensearch-engine-getting-started">開始方法</h3>
+      <p>OpenSearch で S3 Vectors エンジンを使用するには、OpenSearch でのインデックス作成時にエンジンを <code class="code">S3_Vectors</code> に設定します。OpenSearch Service でインデックスを作成するときに使用するテンプレートの詳細については、「<a href="https://docs.opensearch.org/docs/latest/field-types/supported-field-types/knn-methods-engines/" rel="noopener noreferrer" target="_blank"><span>Methods and engines</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>」を参照してください。OpenSearch と S3 Vectors エンジンの統合の詳細については、「<em>Amazon OpenSearch Service デベロッパーガイド</em>」の「<a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/s3-vector-opensearch-integration-engine.html">Advanced search capabilities with an S3 Vectors engine</a>」を参照してください。</p>
+     
+  <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="警告" /> <strong>ブラウザで JavaScript が無効になっているか、使用できません。</strong></p><p>AWS ドキュメントを使用するには、JavaScript を有効にする必要があります。手順については、使用するブラウザのヘルプページを参照してください。</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">ドキュメントの表記規則</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./s3-vectors-integration.html">他の AWS サービスで S3 Vectors を使用する</div><div id="next" class="next-link" accesskey="n" href="./s3-vectors-bedrock-kb.html">S3 Vectors と Amazon Bedrock ナレッジベースを使用する</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">このページは役に立ちましたか? - はい</div><div class="content"><p>ページが役に立ったことをお知らせいただき、ありがとうございます。</p><p>お時間がある場合は、何が良かったかお知らせください。今後の参考にさせていただきます。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">このページは役に立ちましたか? - いいえ</div><div class="content"><p>このページは修正が必要なことをお知らせいただき、ありがとうございます。ご期待に沿うことができず申し訳ありません。</p><p>お時間がある場合は、ドキュメントを改善する方法についてお知らせください。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-opensearch.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

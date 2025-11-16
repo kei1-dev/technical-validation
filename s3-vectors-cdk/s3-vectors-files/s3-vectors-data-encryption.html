@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ja-JP"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>S3 Vectors のデータ保護と暗号化 - Amazon Simple Storage Service</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="s3-vectors-data-encryption" /><meta name="default_state" content="s3-vectors-data-encryption" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" /><meta name="description" content="Amazon S3 マネージドキー (SSE-S3) と AWS KMS キー (SSE-KMS) によるサーバー側の暗号化など、S3 Vectors のデータ保護と暗号化のオプションについて説明します。" /><meta name="deployment_region" content="IAD" /><meta name="product" content="Amazon Simple Storage Service" /><meta name="guide" content="ユーザーガイド" /><meta name="abstract" content="Amazon Simple Storage Service (Amazon S3) を使用して、任意の量のデータをどこからでも保存および取得する方法について説明します。このガイドでは、Amazon S3 のバケット、オブジェクト、関連設定などの概念について説明し、一般的なオペレーションのコード例をいくつか示します。" /><meta name="guide-locale" content="ja_jp" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" hreflang="x-default" /><meta name="feedback-item" content="S3" /><meta name="this_doc_product" content="Amazon Simple Storage Service" /><meta name="this_doc_guide" content="ユーザーガイド" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'s3'}"></script><meta id="panorama-serviceSubSection" value="ユーザーガイド" /><meta id="panorama-serviceConsolePage" value="S3 Vectors のデータ保護と暗号化" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>S3 Vectors のデータ保護と暗号化 - Amazon Simple Storage Service</title><meta name="pdf" content="s3-userguide.pdf#s3-vectors-data-encryption" /><meta name="rss" content="s3-userguide-rss-updates.rss" /><meta name="forums" content="https://repost.aws/ja/tags/TADSTjraA0Q4-a1dxk6eUYaw" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html" /><meta name="keywords" content="S3,Amazon S3,S3 ユーザーガイド,Amazon S3 ユーザーガイド,Amazon ユーザーガイド,s3 バケット,s3 オブジェクト,クラウドストレージ,データストレージ,S3 Vectors,ベクトルストレージ,類似度検索,ベクトルバケット,ベクトルインデックス,セキュリティ,ベクトルデータ,暗号化,データ保護,SSE-S3,SSE-KMS,サーバー側の暗号化" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "Amazon Simple Storage Service (S3)",
+        "item" : "https://docs.aws.amazon.com/s3/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "ユーザーガイド",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "S3 Vectors とベクトルバケットの操作",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "S3 Vectors のセキュリティ",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-security.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 6,
+        "name" : "S3 Vectors のデータ保護と暗号化",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-security.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="s3-userguide.pdf#s3-vectors-data-encryption" target="_blank" rel="noopener noreferrer" title="PDF を開く"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">ドキュメント</a><a href="/s3/index.html">Amazon Simple Storage Service (S3)</a><a href="Welcome.html">ユーザーガイド</a></div><div id="page-toc-src"><a href="#s3-vectors-setting-encryption">バケット暗号化の設定</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="s3-vectors-data-encryption">S3 Vectors のデータ保護と暗号化</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>Amazon S3 Vectors は Amazon Simple Storage Service のプレビューリリースであり、変更される可能性があります。</p></div></div><p>Amazon S3 Vectors は、ベクトルデータに 99.999999999% (イレブンナイン) の耐久性を提供し、ベクトルストレージのニーズに対する並外れた信頼性を保証します。この耐久性は、Amazon S3 の実証済みのインフラストラクチャに支えられています。このインフラストラクチャは、ハードウェアの障害やその他の中断が発生した場合でも、データの整合性と可用性を維持するように設計されています。</p><p>S3 Vectors のデータ保護には、保管中と転送中のベクトルデータを保護するように設計された複数のセキュリティコントロールレイヤーが含まれます。</p><p>デフォルトでは、Amazon S3 Vectors ベクトルバケットのすべての新しいベクトルは Amazon S3 マネージドキー (SSE-S3) によるサーバー側の暗号化を使用します。SSE-S3 暗号化を使用してベクトルバケットを作成すると、バケットに対する後続のすべてのオペレーションは自動的に暗号化を使用します。</p><p>S3 Vectors は AWS Key Management Service (KMS) とも統合され、柔軟な暗号化キー管理オプションを提供するため、アクセス許可の制御と監査のためにカスタマーマネージドキーを選択できます。</p>
+        <h2 id="s3-vectors-setting-encryption">Amazon S3 Vectors バケット向けのサーバー側の暗号化動作の設定</h2>
+
+        <p>S3 Vectors の暗号化設定は、ベクトルバケットを作成する際に指定する基本的なセキュリティ設定です。この設計により、バケットに保存されているすべてのベクトルデータが作成時から暗号化されます。暗号化設定は、バケット内のすべてのベクトル、ベクトルインデックス、メタデータに適用され、ベクトルバケット内のベクトルデータセット全体で一貫した保護を提供します。</p>
+
+        <div class="awsdocs-note awsdocs-important"><div class="awsdocs-note-title"><awsui-icon name="status-warning" variant="error"></awsui-icon><h6>重要</h6></div><div class="awsdocs-note-text"><p>ベクトルバケットの暗号化設定は、ベクトルバケットの作成後に変更することはできません。バケットの作成プロセスでは、コンプライアンス要件、キー管理設定、既存のセキュリティインフラストラクチャとの統合など、暗号化要件を慎重に検討する必要があります。</p></div></div>
+
+        <p>SSE-S3 または SSE-KMS 暗号化タイプはベクトルバケットレベルで設定され、バケット内のすべてのベクトルインデックスとベクトルに適用されます。バケット内の個々のインデックスを異なる暗号化設定に変更することはできません。暗号化設定は、ベクトルデータ自体だけでなく、関連するすべてのメタデータにも適用されます。</p>
+
+         
+            <h3 id="s3-vectors-sse-s3-encryption">SSE-S3 暗号化の使用</h3>
+
+            <p>Amazon S3 マネージドキーによるサーバー側の暗号化 (SSE-S3) は、AWS が暗号化プロセスのあらゆる側面を管理するベクトルバケットにシンプルで効果的な暗号化ソリューションを提供します。この暗号化方法は <code class="code">AES-256</code> 暗号化を使用し、運用上のオーバーヘッドを最小限に抑えながら強力なセキュリティを提供するように設計されています。これにより、組織は暗号化キーを管理する煩雑さを回避しつつ、堅牢な暗号化を実現できます。</p>
+
+            <p>SSE-S3 では、Amazon S3 は暗号化キーの生成、ローテーション、管理を自動的に行います。SSE-S3 は、追加の設定や継続的な管理要件なしで、強力なセキュリティを提供します。暗号化および復号プロセスはサービスによって自動的に処理され、SSE-S3 暗号化の使用には標準の S3 Vectors 料金を超える追加料金はかかりません。</p>
+         
+
+         
+            <h3 id="s3-vectors-sse-kms-encryption">SSE-KMS 暗号化の使用</h3>
+
+            <p>AWS Key Management Service キーによるサーバー側の暗号化 (SSE-KMS) は、暗号化キーの制御を強化し、キー使用状況の詳細な監査ログ記録を可能にします。この暗号化方法は、厳格なコンプライアンス要件を持つ組織、カスタムキーローテーションポリシーを実装する必要がある組織、またはデータアクセスの詳細な監査証跡が必要な環境に最適です。</p>
+
+            <p>SSE-KMS では、カスタマーマネージドキー (CMK) を使用してベクトルデータを暗号化できます。カスタマーマネージドキーは最高レベルのコントロールを提供するため、キーポリシーの定義、キーの有効化または無効化、AWS CloudTrail によるキーの使用状況をモニタリングできます。このレベルのコントロールにより、SSE-KMS は特定のデータガバナンス要件を持つ規制対象業界または組織に特に適しています。</p>
+
+            <p>カスタマーマネージドキーで SSE-KMS を使用する場合、誰がキーを使用してデータを暗号化および復号化できるかを完全に制御できます。キーにアクセスできるユーザー、ロール、またはサービスを指定する詳細なキーポリシーを作成できます。</p>
+
+             
+                <h4 id="s3-vectors-sse-kms-considerations">SSE-KMS に関する重要な考慮事項</h4>
+
+                <div class="itemizedlist">
+                     
+                     
+                <ul class="itemizedlist"><li class="listitem">
+                        <p><b>KMS キー形式の要件:</b> S3 Vectors では、完全な Amazon リソースネーム (ARN) 形式を使用して KMS キーを指定する必要があります。キー ID またはキーエイリアスはサポートされていません。</p>
+                    </li><li class="listitem">
+                        <p><b>サービスプリンシパルのアクセス許可:</b> S3 Vectors でカスタマーマネージドキーを使用する場合は、KMS キーを使用するアクセス許可を S3 Vectors サービスプリンシパルに明示的に付与する必要があります。この要件により、サービスがユーザーに代わってデータを暗号化および復号できるようになります。アクセスを必要とするサービスプリンシパルは <code class="code">indexing.s3vectors.amazonaws.com</code> です。</p>
+                    </li></ul></div>
+
+                <p><b>例: S3 ベクトルの KMS キーポリシー</b></p>
+                <p>S3 Vectors でカスタマーマネージド KMS キーを使用するには、S3 Vectors サービスプリンシパルのアクセス許可を含めるようにキーポリシーを更新する必要があります。包括的なキーポリシーの例を次に示します。</p>
+
+                <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="コピー"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (json)--><code class="json ">
+<span>{</span>
+    "Version": "2012-10-17",		 	 	 
+    "Statement": [
+        <span>{</span>
+            "Sid": "AllowS3VectorsServicePrincipal",
+            "Effect": "Allow",
+            "Principal": <span>{</span>
+                "Service": "indexing.s3vectors.amazonaws.com"
+            },
+            "Action": "kms:Decrypt",
+            "Resource": "*",
+            "Condition": <span>{</span>
+                "ArnLike": <span>{</span>
+                    "aws:SourceArn": "arn:aws:s3vectors:<code class="replaceable"><code class="replaceable">aws-region</code></code>:<code class="replaceable">123456789012</code>:bucket/*"
+                },
+                "StringEquals": <span>{</span>
+                    "aws:SourceAccount": "<code class="replaceable">123456789012</code>"
+                },
+                "ForAnyValue:StringEquals": <span>{</span>
+                    "kms:EncryptionContextKeys": ["aws:s3vectors:arn", "aws:s3vectors:resource-id"]
+                }
+            }
+        },
+        <span>{</span>
+            "Sid": "AllowApplicationAccess",
+            "Effect": "Allow",
+            "Principal": <span>{</span>
+                "AWS": [
+                    "arn:aws:iam:<code class="replaceable">123456789012</code>:role/VectorApplicationRole",
+                    "arn:aws:iam:<code class="replaceable">123456789012</code>:user/DataScientist"
+                ]
+            },
+            "Action": [
+                "kms:Decrypt",
+                "kms:GenerateDataKey"
+            ],
+            "Resource": "*",
+            "Condition": <span>{</span>
+                "StringEquals": <span>{</span>
+                    "kms:ViaService": "s3vectors.<code class="replaceable"><code class="replaceable">aws-region</code></code>.amazonaws.com"
+                },
+                "ForAnyValue:StringEquals": <span>{</span>
+                    "kms:EncryptionContextKeys": ["aws:s3vectors:arn", "aws:s3vectors:resource-id"]
+                }
+            }
+        }
+    ]
+}
+</code></pre>
+
+                <div class="itemizedlist">
+                     
+                     
+                <ul class="itemizedlist"><li class="listitem">
+                        <p><b>必要なアクセス許可:</b></p>
+                        <div class="itemizedlist">
+                             
+                             
+                        <ul class="itemizedlist"><li class="listitem">
+                                <p>S3 Vectors サービスプリンシパルのアクセス許可:</p>
+                                <div class="itemizedlist">
+                                     
+                                <ul class="itemizedlist"><li class="listitem">
+                                        <p><code class="code">kms:Decrypt</code> – バックグラウンドオペレーションでインデックスを維持および最適化するために、カスタマーマネージドキーの S3 Vectors サービスプリンシパル (<code class="code">indexing.s3vectors.amazonaws.com</code>) が必要</p>
+                                    </li></ul></div>
+                            </li><li class="listitem">
+                                <p>IAM プリンシパルアクセス許可</p>
+                                <div class="itemizedlist">
+                                     
+                                         
+                                <ul class="itemizedlist"><li class="listitem">
+                                        <p><code class="code">kms:Decrypt</code> – すべてのベクトルレベルのオペレーション (<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_PutVectors.html">PutVectors</a>、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_GetVectors.html">GetVectors</a>、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_QueryVectors.html">QueryVectors</a>、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_DeleteVectors.html">DeleteVectors</a>、<a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_ListVectors.html">ListVectors</a>) に必要です</p>
+                                    </li><li class="listitem">
+                                            <p><code class="code">kms:GenerateDataKey</code> – カスタマーマネージドキーを使用してベクトルバケットを作成するために必要です</p>
+                                        </li></ul></div>
+                            </li></ul></div>
+
+
+
+                    </li><li class="listitem">
+                        <p><b>クロスアカウントアクセスに関する考慮事項:</b> SSE-KMS でクロスアカウントアクセスパターンを実装する場合、KMS キーポリシーで他のアカウントの適切なプリンシパルからのアクセスが許可されていることを確認する必要があります。キー ARN 形式は、アクセス元のアカウントコンテキストに関係なく、キーへの明確な参照を提供するため、クロスアカウントシナリオで特に重要になります。</p>
+                    </li></ul></div>
+             
+         
+    <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="警告" /> <strong>ブラウザで JavaScript が無効になっているか、使用できません。</strong></p><p>AWS ドキュメントを使用するには、JavaScript を有効にする必要があります。手順については、使用するブラウザのヘルプページを参照してください。</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">ドキュメントの表記規則</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./s3-vectors-resource-based-policies.html">S3 Vectors のリソースベースのポリシーの例</div><div id="next" class="next-link" accesskey="n" href="./s3-vectors-sectting-encryption.html">S3 Vectors での暗号化の設定</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">このページは役に立ちましたか? - はい</div><div class="content"><p>ページが役に立ったことをお知らせいただき、ありがとうございます。</p><p>お時間がある場合は、何が良かったかお知らせください。今後の参考にさせていただきます。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">このページは役に立ちましたか? - いいえ</div><div class="content"><p>このページは修正が必要なことをお知らせいただき、ありがとうございます。ご期待に沿うことができず申し訳ありません。</p><p>お時間がある場合は、ドキュメントを改善する方法についてお知らせください。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-data-encryption.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

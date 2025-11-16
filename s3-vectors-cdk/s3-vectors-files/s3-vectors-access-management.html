@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ja-JP"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>S3 Vectors での ID およびアクセス管理 - Amazon Simple Storage Service</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="s3-vectors-access-management" /><meta name="default_state" content="s3-vectors-access-management" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" /><meta name="description" content="IAM ポリシーとリソースベースのポリシーを使用して S3 Vectors リソースへのアクセスを管理する方法について説明します。" /><meta name="deployment_region" content="IAD" /><meta name="product" content="Amazon Simple Storage Service" /><meta name="guide" content="ユーザーガイド" /><meta name="abstract" content="Amazon Simple Storage Service (Amazon S3) を使用して、任意の量のデータをどこからでも保存および取得する方法について説明します。このガイドでは、Amazon S3 のバケット、オブジェクト、関連設定などの概念について説明し、一般的なオペレーションのコード例をいくつか示します。" /><meta name="guide-locale" content="ja_jp" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-access-management.html" hreflang="x-default" /><meta name="feedback-item" content="S3" /><meta name="this_doc_product" content="Amazon Simple Storage Service" /><meta name="this_doc_guide" content="ユーザーガイド" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'s3'}"></script><meta id="panorama-serviceSubSection" value="ユーザーガイド" /><meta id="panorama-serviceConsolePage" value="S3 Vectors での ID およびアクセス管理" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>S3 Vectors での ID およびアクセス管理 - Amazon Simple Storage Service</title><meta name="pdf" content="s3-userguide.pdf#s3-vectors-access-management" /><meta name="rss" content="s3-userguide-rss-updates.rss" /><meta name="forums" content="https://repost.aws/ja/tags/TADSTjraA0Q4-a1dxk6eUYaw" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html" /><meta name="keywords" content="S3,Amazon S3,S3 ユーザーガイド,Amazon S3 ユーザーガイド,Amazon ユーザーガイド,s3 バケット,s3 オブジェクト,クラウドストレージ,データストレージ,S3 Vectors,ベクトルストレージ,類似度検索,ベクトルバケット,ベクトルインデックス,セキュリティ,ベクトルデータ,暗号化,データ保護,アクセス管理,IAM,ポリシー,アクセス許可,認証,承認" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "Amazon Simple Storage Service (S3)",
+        "item" : "https://docs.aws.amazon.com/s3/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "ユーザーガイド",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "S3 Vectors とベクトルバケットの操作",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "S3 Vectors のセキュリティ",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-security.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 6,
+        "name" : "S3 Vectors での ID およびアクセス管理",
+        "item" : "https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-security.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="s3-userguide.pdf#s3-vectors-access-management" target="_blank" rel="noopener noreferrer" title="PDF を開く"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">ドキュメント</a><a href="/s3/index.html">Amazon Simple Storage Service (S3)</a><a href="Welcome.html">ユーザーガイド</a></div><div id="page-toc-src"><a href="#s3-vectors-authenticating-authorizing">リクエストの認証と承認</a><a href="#s3-vectors-resource-types">ベクトルバケットに定義されるリソースタイプ</a><a href="#s3-vectors-policy-actions">ベクトルバケットのポリシーアクション</a><a href="#s3-vectors-condition-keys">ベクトルバケットの条件キー</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="s3-vectors-access-management">S3 Vectors での ID およびアクセス管理</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>注記</h6></div><div class="awsdocs-note-text"><p>Amazon S3 Vectors は Amazon Simple Storage Service のプレビューリリースであり、変更される可能性があります。</p></div></div><p>S3 Vectors でのアクセス管理は、AWS セキュリティのベストプラクティスに従って、複数のコントロールレイヤーを提供し、承認されたユーザーとアプリケーションのみがベクトルデータにアクセスできるようにします。このサービスは IAM と統合され、アイデンティティベースおよびリソースベースの両方のポリシーをサポートしているため、組織全体のアクセス許可を柔軟に構築し、管理できます。</p>
+        <h2 id="s3-vectors-authenticating-authorizing">リクエストの認証と承認</h2>
+
+        <p>S3 Vectors は、AWS 標準の認証と認可のメカニズムを使用して、ベクトルバケットとコンテンツへのアクセスを保護します。S3 Vectors へのすべてのリクエストは有効な AWS 認証情報を使用して認証する必要があり、サービスはアイデンティティベースのポリシー、リソースベースのポリシー、および該当するサービスコントロールポリシーの組み合わせに基づいてアクセス許可を評価します。</p>
+
+        <p>認証プロセスは、クライアントが AWS 認証情報 (アクセスキー、AWS STS からの一時的な認証情報、または IAM ロール) を使用して S3 Vectors にリクエストを行ったときに開始されます。サービスはこれらの認証情報を検証し、リクエストされたアクションとターゲットリソースに対し、認証された ID に関連付けられたアクセス許可を評価します。この評価プロセスでは、複数のポリシータイプを考慮し、最小特権の原則を適用して、リクエストを許可または拒否するかどうかを決定します。</p>
+
+        <p>S3 Vectors での認証は、複数の詳細度レベルで動作します。ベクトルバケットレベル、個々のベクトルインデックスレベル、またはインデックス内の特定の操作においてもアクセスを制御できます。この階層的なアクセス許可モデルにより、組織構造とデータガバナンス要件に沿った高度なアクセスコントロールスキームを実装できます。</p>
+     
+        <h2 id="s3-vectors-resource-types">ベクトルバケットに定義されるリソースタイプ</h2>
+
+        <p>S3 Vectors は、IAM ポリシーおよびリソースベースのポリシーで参照できる特定のリソースタイプを定義します。これらのリソースタイプについての理解は、適切なユーザーとアプリケーションに適切なレベルのアクセスを提供する効果的なアクセスコントロールポリシーを作成するのに不可欠です。</p>
+
+        <p>次の表は、S3 Vectors で利用可能なリソースタイプを示しています。</p>
+
+        <div class="table-container"><div class="table-contents"><table id="w871aac19c30c11b9b7"><caption>S3 Vectors で利用可能なリソースタイプ</caption><thead>
+                    <tr>
+                        <th>リソースタイプ</th>
+                        <th>ARN 形式</th>
+                        <th>説明</th>
+                    </tr>
+                </thead>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1">arn:aws:s3vectors:<code class="replaceable">region</code>:<code class="replaceable">123,456,789,012</code>:bucket/<code class="replaceable">bucket-name</code></td>
+                        <td tabindex="-1">ベクトルバケットを表し、バケットの作成、削除、設定などのバケットレベルの操作に使用されます。</td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1">arn:aws:s3vectors:<code class="replaceable">region</code>:<code class="replaceable">123,456,789,012</code>:bucket/<code class="replaceable">bucket-name</code>/index/<code class="replaceable">index-name</code></td>
+                        <td tabindex="-1">バケット内のベクトルインデックスを表し、ベクトルのクエリやインデックスコンテンツの管理などのインデックス固有の操作に使用されます。</td>
+                    </tr>
+                </table></div></div>
+     
+        <h2 id="s3-vectors-policy-actions">ベクトルバケットのポリシーアクション</h2>
+
+        <p>S3 Vectors は、ベクトルバケットとインデックスに対して実行できるさまざまな操作に対応する包括的なポリシーアクションを提供します。これらのアクションは、特定の操作を実行できるユーザーをきめ細かく制御するように設計されているため、最小特権の原則を効果的に実装できます。</p>
+
+        <p>以下の表に、S3 Vectors リソースで利用可能なすべてのポリシーアクションを示します。</p>
+
+        <div class="table-container"><div class="table-contents"><table id="w871aac19c30c11c11b7"><caption>S3 Vectors リソースのポリシーアクション</caption><thead>
+                    <tr>
+                        <th>リソースタイプ</th>
+                        <th>API オペレーション</th>
+                        <th>ポリシーアクション</th>
+                        <th>ポリシーアクションの説明</th>
+                        <th>アクセスレベル</th>
+                        <th>条件キー</th>
+                    </tr>
+                </thead>
+                    <tr>
+                        <td tabindex="-1">アカウント</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_ListVectorBuckets.html">ListVectorBuckets</a></td>
+                        <td tabindex="-1">s3vectors:ListVectorBuckets</td>
+                        <td tabindex="-1">アカウントとリージョン内のすべてのベクトルバケットを一覧表示するアクセス許可を付与します</td>
+                        <td tabindex="-1">リスト</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_CreateVectorBucket.html">CreateVectorBucket</a></td>
+                        <td tabindex="-1">s3vectors:CreateVectorBucket</td>
+                        <td tabindex="-1">指定された設定で新しいベクトルバケットを作成するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1">s3vectors:sseType, s3vectors:kmsKeyArn</td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_GetVectorBucket.html">GetVectorBucket</a></td>
+                        <td tabindex="-1">s3vectors:GetVectorBucket</td>
+                        <td tabindex="-1">ベクトルバケットの属性と設定を取得するアクセス許可を付与します</td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_DeleteVectorBucket.html">DeleteVectorBucket</a></td>
+                        <td tabindex="-1">s3vectors:DeleteVectorBucket</td>
+                        <td tabindex="-1">空のベクトルバケットを削除するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_ListIndexes.html">ListIndexes</a></td>
+                        <td tabindex="-1">s3vectors:ListIndexes</td>
+                        <td tabindex="-1">ベクトルバケット内のすべてのインデックスを一覧表示するアクセス許可を付与します</td>
+                        <td tabindex="-1">リスト</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_PutVectorBucketPolicy.html">PutVectorBucketPolicy</a></td>
+                        <td tabindex="-1">s3vectors:PutVectorBucketPolicy</td>
+                        <td tabindex="-1">ベクトルバケットのリソースベースのポリシーを適用または更新するアクセス許可を付与します</td>
+                        <td tabindex="-1">権限の管理</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_GetVectorBucketPolicy.html">GetVectorBucketPolicy</a></td>
+                        <td tabindex="-1">s3vectors:GetVectorBucketPolicy</td>
+                        <td tabindex="-1">ベクトルバケットにアタッチされているリソースベースのポリシーを取得するアクセス許可を付与します</td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">VectorBucket</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_DeleteVectorBucketPolicy.html">DeleteVectorBucketPolicy</a></td>
+                        <td tabindex="-1">s3vectors:DeleteVectorBucketPolicy</td>
+                        <td tabindex="-1">ベクトルバケットからリソースベースのポリシーを削除するアクセス許可を付与します</td>
+                        <td tabindex="-1">権限の管理</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_CreateIndex.html">CreateIndex</a></td>
+                        <td tabindex="-1">s3vectors:CreateIndex</td>
+                        <td tabindex="-1">指定されたディメンションとメタデータの設定で新しいベクトルインデックスを作成するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_GetIndex.html">GetIndex</a></td>
+                        <td tabindex="-1">s3vectors:GetIndex</td>
+                        <td tabindex="-1">ベクトルインデックスの属性と設定を取得するアクセス許可を付与します</td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_DeleteIndex.html">DeleteIndex</a></td>
+                        <td tabindex="-1">s3vectors:DeleteIndex</td>
+                        <td tabindex="-1">ベクトルインデックスとすべてのコンテンツを削除するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_QueryVectors.html">QueryVectors</a></td>
+                        <td tabindex="-1">(必須) s3vectors:QueryVectors</td>
+                        <td tabindex="-1"><p>インデックス内のベクトルに対して類似度のクエリを実行するアクセス許可を付与します。</p>
+                            <p> <b><code class="code">s3vectors:QueryVectors</code> のみ</b>、近似最近傍検索とその計算された距離のベクトルキーをクエリベクトルから取得できます。メタデータフィルターを設定せず、(<code class="code">returnMetadata</code> パラメータを false または指定しないに設定することにより) ベクトルデータまたはメタデータをリクエストしない場合にのみ、このアクセス許可で十分です。</p></td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1"></td>
+                        <td tabindex="-1"></td>
+                        <td tabindex="-1">(条件付きで必須): s3vectors:GetVectors</td>
+                        <td tabindex="-1"><p>メタデータフィルターを設定する場合、リクエストで <code class="code">returnMetadata</code> を true に設定する必要があります。</p>
+                            <p> <b><code class="code">s3vectors:QueryVectors</code> と <code class="code">s3vectors:GetVectors</code> の両方で</b>、メタデータの条件を使用して結果をフィルタリングし、関連付けられているデータ、メタデータ、およびクエリベクトルから計算された距離に合致するベクトルキーを取得できます。</p></td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_PutVectors.html">PutVectors</a></td>
+                        <td tabindex="-1">s3vectors:PutVectors</td>
+                        <td tabindex="-1">インデックス内のベクトルを追加または更新するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_GetVectors.html">GetVectors</a></td>
+                        <td tabindex="-1">s3vectors:GetVectors</td>
+                        <td tabindex="-1">ベクトルキーによって特定のベクトルとそのメタデータを取得するアクセス許可を付与します</td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_ListVectors.html">ListVectors</a></td>
+                        <td tabindex="-1">(必須) s3vectors:ListVectors</td>
+                        <td tabindex="-1"><p>インデックス内のベクトルキーを一覧表示するアクセス許可を付与します。</p>
+                            <p><b><code class="code">s3vectors:ListVectors</code> でのみ</b>、<code class="code">returnData</code> と <code class="code">returnMetadata</code> パラメータの両方が false であるか、指定されていない場合に、ベクトルキーを一覧表示できます。</p></td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1"></td>
+                        <td tabindex="-1"></td>
+                        <td tabindex="-1">(条件付きで必須): s3vectors:GetVectors</td>
+                        <td tabindex="-1"><p>リクエストで <code class="code">returnData</code> または <code class="code">returnMetadata</code> パラメータを true に設定した場合は必須です。</p>
+                            <p> <b><code class="code">s3vectors:ListVectors</code> と <code class="code">s3vectors:GetVectors</code> の両方を使用する場合</b>、<code class="code">returnData</code> と <code class="code">returnMetadata</code> を true に設定することにより、関連付けられているデータとメタデータに合致するベクトルキーを取得できます。</p></td>
+                        <td tabindex="-1">読み取り</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">[Index] (インデックス)</td>
+                        <td tabindex="-1"><a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_S3VectorBuckets_DeleteVectors.html">DeleteVectors</a></td>
+                        <td tabindex="-1">s3vectors:DeleteVectors</td>
+                        <td tabindex="-1">インデックスから特定のベクトルを削除するアクセス許可を付与します</td>
+                        <td tabindex="-1">書き込み</td>
+                        <td tabindex="-1"></td>
+                    </tr>
+                </table></div></div>
+
+        <p>これらのアクションをさまざまな方法で組み合わせて、特定のアクセス要件に一致するポリシーを作成できます。例えば、<code class="code">s3vectors:GetVectorBucket</code>、<code class="code">s3vectors:ListIndexes</code>、<code class="code">s3vectors:QueryVectors</code> および <code class="code">s3vectors:GetVectors</code> アクションを含む読み取り専用ポリシー、またはクエリとベクトルの取得アクセス許可を含むが、インデックスの作成や削除などの管理アクションを除外するポリシーを作成できます。</p>
+     
+        <h2 id="s3-vectors-condition-keys">ベクトルバケットの条件キー</h2>
+
+        <div class="table-container"><div class="table-contents"><table id="w871aac19c30c11c13b3"><caption>ベクトルバケットの条件キー</caption><thead>
+                    <tr>
+                        <th></th>
+                        <th>条件キー</th>
+                        <th>説明</th>
+                        <th>タイプ</th>
+                    </tr>
+                </thead>
+                    <tr>
+                        <td tabindex="-1">1</td>
+                        <td tabindex="-1">s3vectors:sseType</td>
+                        <td tabindex="-1">サーバー側の暗号化タイプでアクセスをフィルタリングします。<b>有効な値:</b> <code class="code">AES256 | aws:kms</code></td>
+                        <td tabindex="-1">文字列</td>
+                    </tr>
+                    <tr>
+                        <td tabindex="-1">2</td>
+                        <td tabindex="-1">s3vectors:kmsKeyArn</td>
+                        <td tabindex="-1">ベクトルバケットの暗号化に使用するキーの AWS AWS KMS キー ARN でアクセスをフィルタリングします</td>
+                        <td tabindex="-1">ARN</td>
+                    </tr>
+                </table></div></div>
+    <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="警告" /> <strong>ブラウザで JavaScript が無効になっているか、使用できません。</strong></p><p>AWS ドキュメントを使用するには、JavaScript を有効にする必要があります。手順については、使用するブラウザのヘルプページを参照してください。</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">ドキュメントの表記規則</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./s3-vectors-security.html">S3 Vectors のセキュリティ</div><div id="next" class="next-link" accesskey="n" href="./s3-vectors-iam-policies.html">S3 Vectors アイデンティティベースのポリシーの例 </div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">このページは役に立ちましたか? - はい</div><div class="content"><p>ページが役に立ったことをお知らせいただき、ありがとうございます。</p><p>お時間がある場合は、何が良かったかお知らせください。今後の参考にさせていただきます。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">このページは役に立ちましたか? - いいえ</div><div class="content"><p>このページは修正が必要なことをお知らせいただき、ありがとうございます。ご期待に沿うことができず申し訳ありません。</p><p>お時間がある場合は、ドキュメントを改善する方法についてお知らせください。</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="フィードバック" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=S3&amp;topic_url=https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/s3-vectors-access-management.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>
