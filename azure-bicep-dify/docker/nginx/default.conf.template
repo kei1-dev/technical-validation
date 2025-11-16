@@ -1,0 +1,85 @@
+# Upstream servers
+# In Azure Container Apps, services can be accessed by their container app name
+# Environment variables are used for flexibility across different environments
+upstream web {
+    server ${DIFY_WEB_HOST}:${DIFY_WEB_PORT};
+}
+
+upstream api {
+    server ${DIFY_API_HOST}:${DIFY_API_PORT};
+}
+
+# Plugin Daemon upstream for plugin hook endpoints
+upstream plugin_daemon {
+    server ${DIFY_PLUGIN_DAEMON_HOST}:${DIFY_PLUGIN_DAEMON_PORT};
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # Health check endpoint for Application Gateway
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Console API - highest priority
+    location /console/api {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # API endpoints
+    location /api {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # V1 API endpoints
+    location /v1 {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Files endpoint
+    location /files {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # MCP endpoint
+    location /mcp {
+        proxy_pass http://api;
+        proxy_set_header Host ${DIFY_API_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Plugin hook endpoint - routes to Plugin Daemon
+    # This endpoint is used by external services to trigger plugin hooks
+    location /e/ {
+        proxy_pass http://plugin_daemon;
+        proxy_set_header Host ${DIFY_PLUGIN_DAEMON_HOST};
+        proxy_set_header Dify-Hook-Url $scheme://$host$request_uri;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Explore interface
+    location /explore {
+        proxy_pass http://web;
+        proxy_set_header Host ${DIFY_WEB_HOST};
+        include /etc/nginx/proxy_params;
+    }
+
+    # Default - Web UI
+    location / {
+        proxy_pass http://web;
+        proxy_set_header Host ${DIFY_WEB_HOST};
+        include /etc/nginx/proxy_params;
+    }
+}
