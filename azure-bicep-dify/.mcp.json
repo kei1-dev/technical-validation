@@ -4,6 +4,14 @@
       "type": "stdio",
       "command": "codex",
       "args": ["mcp-server"]
+    },
+    "task-management": {
+      "type": "http",
+      "url": "https://app.kei1.xyz/remote/mcp",
+      "headers": {
+        "Authorization": "Bearer kei1-api-key",
+        "X-User-ID": "47549a88-9071-702b-04ed-e2d0aa20991e"
+      }
     }
   }
 }
