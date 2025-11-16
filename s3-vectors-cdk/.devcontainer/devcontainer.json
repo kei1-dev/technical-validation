@@ -1,0 +1,48 @@
+{
+  "name": "S3 Vectors CDK Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "VARIANT": "3.12-bookworm"
+    }
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/s3-vectors-cdk,type=bind",
+  "workspaceFolder": "/workspaces/s3-vectors-cdk",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  },
+  "runArgs": ["--privileged"],
+  "remoteUser": "vscode",
+  "remoteEnv": {
+    "PIPENV_VENV_IN_PROJECT": "1"
+  },
+  "containerEnv": {
+    "PIPENV_NOSPIN": "1",
+    "PIPENV_SKIP_LOCK": "1",
+    "DOCKER_BUILDKIT": "1"
+  },
+  "updateRemoteUserUID": false,
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode-remote.remote-containers",
+        "ms-azuretools.vscode-docker",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "amazonwebservices.aws-toolkit-vscode"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"]
+      }
+    }
+  }
+}
